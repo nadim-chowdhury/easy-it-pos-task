@@ -1,0 +1,106 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model User {
+    id        String   @id @default(cuid())
+    email     String   @unique
+    username  String   @unique // Add this
+    password  String
+    name      String
+    role      String   @default("CASHIER") // Add this
+    isActive  Boolean  @default(true) // Add this
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    sales Sale[]
+
+    @@map("users")
+}
+
+model Product {
+    id          String   @id @default(cuid())
+    name        String
+    code        String   @unique
+    price       Float
+    stockQty    Int
+    category    String?
+    description String?
+    imageUrl    String?
+    isActive    Boolean  @default(true)
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    saleItems     SaleItem[]
+    StockMovement StockMovement[]
+
+    // Performance indexes
+    @@index([name]) // For name-based searches
+    @@index([code]) // For code-based searches
+    @@index([isActive]) // For filtering active products
+    @@index([createdAt]) // For sorting by creation date
+    @@index([name, isActive]) // Composite index for common queries
+    @@map("products")
+}
+
+model Sale {
+    id            String   @id @default(cuid())
+    saleNumber    String   @unique // Add this field
+    total         Float
+    finalAmount   Float // Add this field
+    tax           Float    @default(0) // Add this field
+    discount      Float    @default(0) // Add this field
+    paymentMethod String   @default("cash") // Add this field
+    userId        String
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+
+    user  User       @relation(fields: [userId], references: [id])
+    items SaleItem[]
+
+    // Performance indexes
+    @@index([userId])
+    @@index([createdAt])
+    @@index([userId, createdAt])
+    @@index([saleNumber]) // Add index for saleNumber
+    @@map("sales")
+}
+
+model SaleItem {
+    id        String @id @default(cuid())
+    saleId    String
+    productId String
+    quantity  Int
+    price     Float
+
+    sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+    product Product @relation(fields: [productId], references: [id])
+
+    // Performance indexes
+    @@index([saleId]) // For sale-specific items
+    @@index([productId]) // For product-specific sales
+    @@map("sale_items")
+}
+
+model StockMovement {
+    id           String   @id @default(cuid())
+    productId    String
+    movementType String // 'SALE', 'PURCHASE', 'ADJUSTMENT', 'RETURN'
+    quantity     Int
+    previousQty  Int
+    newQty       Int
+    reason       String
+    reference    String?
+    createdAt    DateTime @default(now())
+
+    product Product @relation(fields: [productId], references: [id])
+
+    @@index([productId])
+    @@index([createdAt])
+    @@map("stock_movements")
+}
