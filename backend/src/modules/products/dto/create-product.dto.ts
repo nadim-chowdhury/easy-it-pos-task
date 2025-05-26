@@ -7,56 +7,104 @@ import {
   Min,
   MaxLength,
   IsNotEmpty,
+  Matches,
 } from 'class-validator';
 
 export class CreateProductDto {
-  @ApiProperty({ description: 'Product name', example: 'Coca Cola 330ml' })
+  @ApiProperty({
+    description: 'Product name',
+    example: 'Coca Cola 330ml',
+    minLength: 1,
+    maxLength: 255,
+  })
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(255)
+  @IsNotEmpty({ message: 'Product name is required' })
+  @MaxLength(255, { message: 'Product name must not exceed 255 characters' })
   name: string;
 
-  @ApiProperty({ description: 'Product code', example: 'CC330' })
+  @ApiProperty({
+    description: 'Unique product code/SKU',
+    example: 'CC330',
+    minLength: 1,
+    maxLength: 50,
+    pattern: '^[A-Z0-9-_]+$',
+  })
   @IsString()
-  @IsNotEmpty()
-  @MaxLength(50)
+  @IsNotEmpty({ message: 'Product code is required' })
+  @MaxLength(50, { message: 'Product code must not exceed 50 characters' })
+  @Matches(/^[A-Z0-9\-_]+$/, {
+    message:
+      'Product code must contain only uppercase letters, numbers, hyphens, and underscores',
+  })
   code: string;
 
-  @ApiProperty({ description: 'Product description', required: false })
+  @ApiProperty({
+    description: 'Detailed product description',
+    example:
+      'Classic Coca Cola in 330ml aluminum can. Refreshing carbonated soft drink.',
+    required: false,
+    maxLength: 1000,
+  })
   @IsOptional()
   @IsString()
-  @MaxLength(1000)
+  @MaxLength(1000, { message: 'Description must not exceed 1000 characters' })
   description?: string;
 
-  @ApiProperty({ description: 'Product price', example: 2.5 })
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @IsPositive()
+  @ApiProperty({
+    description: 'Product price in currency units',
+    example: 2.5,
+    minimum: 0.01,
+    type: 'number',
+    format: 'float',
+  })
+  @IsNumber(
+    { maxDecimalPlaces: 2 },
+    { message: 'Price must be a number with maximum 2 decimal places' },
+  )
+  @IsPositive({ message: 'Price must be greater than 0' })
   price: number;
 
-  @ApiProperty({ description: 'Stock quantity', example: 100 })
-  @IsNumber()
-  @Min(0)
+  @ApiProperty({
+    description: 'Current stock quantity in inventory',
+    example: 100,
+    minimum: 0,
+    type: 'integer',
+  })
+  @IsNumber({}, { message: 'Stock quantity must be a number' })
+  @Min(0, { message: 'Stock quantity cannot be negative' })
   stockQty: number;
 
   @ApiProperty({
-    description: 'Minimum stock level',
+    description: 'Minimum stock level threshold for low stock alerts',
     example: 10,
+    minimum: 0,
     required: false,
+    type: 'integer',
   })
   @IsOptional()
-  @IsNumber()
-  @Min(0)
+  @IsNumber({}, { message: 'Minimum stock must be a number' })
+  @Min(0, { message: 'Minimum stock cannot be negative' })
   minStock?: number;
 
-  @ApiProperty({ description: 'Product category', required: false })
+  @ApiProperty({
+    description: 'Product category for organization and filtering',
+    example: 'Beverages',
+    required: false,
+    maxLength: 100,
+  })
   @IsOptional()
   @IsString()
-  @MaxLength(100)
+  @MaxLength(100, { message: 'Category must not exceed 100 characters' })
   category?: string;
 
-  @ApiProperty({ description: 'Product barcode', required: false })
+  @ApiProperty({
+    description: 'Product barcode (EAN, UPC, etc.)',
+    example: '1234567890123',
+    required: false,
+    maxLength: 100,
+  })
   @IsOptional()
   @IsString()
-  @MaxLength(100)
+  @MaxLength(100, { message: 'Barcode must not exceed 100 characters' })
   barcode?: string;
 }

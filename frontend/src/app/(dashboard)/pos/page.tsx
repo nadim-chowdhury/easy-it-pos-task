@@ -57,7 +57,7 @@ interface PaginationInfo {
 }
 
 export default function POSpage() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<any>([]);
   const [displayProducts, setDisplayProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(false);

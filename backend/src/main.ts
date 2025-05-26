@@ -67,9 +67,9 @@ async function bootstrap() {
       .setDescription('Point of Sale System REST API Documentation')
       .setVersion('1.0')
       .addBearerAuth()
-      .addTag('auth', 'Authentication endpoints')
-      .addTag('products', 'Product management endpoints')
-      .addTag('sales', 'Sales management endpoints')
+      // .addTag('auth', 'Authentication endpoints')
+      // .addTag('products', 'Product management endpoints')
+      // .addTag('sales', 'Sales management endpoints')
       .build();
 
     const document = SwaggerModule.createDocument(app, config);

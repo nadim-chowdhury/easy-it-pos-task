@@ -1,0 +1,8 @@
+.env
+.next
+.qodo
+build
+dist
+node_modules
+logs
+      
