@@ -107,4 +107,15 @@ export class CreateProductDto {
   @IsString()
   @MaxLength(100, { message: 'Barcode must not exceed 100 characters' })
   barcode?: string;
+
+  @ApiProperty({
+    description: 'User that created this product',
+    example: '1234EECXSSDyskjfskjdskjf567890123',
+    required: false,
+    maxLength: 100,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100, { message: 'Created by must not exceed 100 characters' })
+  createdBy?: string;
 }

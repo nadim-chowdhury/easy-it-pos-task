@@ -33,7 +33,7 @@ interface CheckoutProps {
   taxAmount: number;
   total: number;
   onComplete: (checkoutData: {
-    paymentMethod: "cash" | "card" | "digital";
+    paymentMethod: "CASH" | "CARD" | "DIGITAL_WALLET";
     customerName?: string;
     customerPhone?: string;
     notes?: string;
@@ -52,7 +52,7 @@ export default function Checkout({
   onComplete,
   onCancel,
 }: CheckoutProps) {
-  const [paymentMethod, setPaymentMethod] = useState<any>("cash");
+  const [paymentMethod, setPaymentMethod] = useState<any>("CASH");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [notes, setNotes] = useState("");
@@ -62,9 +62,9 @@ export default function Checkout({
 
   const amountReceivedNum = parseFloat(amountReceived) || 0;
   const changeAmount =
-    paymentMethod === "cash" ? Math.max(0, amountReceivedNum - total) : 0;
+    paymentMethod === "CASH" ? Math.max(0, amountReceivedNum - total) : 0;
   const isValidCashPayment =
-    paymentMethod !== "cash" || amountReceivedNum >= total;
+    paymentMethod !== "CASH" || amountReceivedNum >= total;
 
   // Handle modal animation
   useEffect(() => {
@@ -82,21 +82,21 @@ export default function Checkout({
 
   const paymentMethods = [
     {
-      id: "cash",
+      id: "CASH",
       label: "Cash",
       icon: DollarSign,
       description: "Physical cash payment",
       gradient: "from-emerald-500 to-green-600",
     },
     {
-      id: "card",
+      id: "CARD",
       label: "Card",
       icon: CreditCard,
       description: "Credit or debit card",
       gradient: "from-blue-500 to-blue-600",
     },
     {
-      id: "digital",
+      id: "DIGITAL_WALLET",
       label: "Digital",
       icon: Smartphone,
       description: "Mobile or digital wallet",
@@ -120,8 +120,8 @@ export default function Checkout({
         customerPhone: customerPhone.trim() || "",
         notes: notes.trim() || "",
         amountReceived:
-          paymentMethod === "cash" ? amountReceivedNum : undefined,
-        changeAmount: paymentMethod === "cash" ? changeAmount : undefined,
+          paymentMethod === "CASH" ? amountReceivedNum : undefined,
+        changeAmount: paymentMethod === "CASH" ? changeAmount : undefined,
       });
     } catch (error) {
       console.error("Checkout failed:", error);
@@ -329,7 +329,7 @@ export default function Checkout({
               </div>
 
               {/* Cash Payment Details */}
-              {paymentMethod === "cash" && (
+              {paymentMethod === "CASH" && (
                 <div className="bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-200 rounded-2xl p-6 space-y-6">
                   <h4 className="font-semibold text-emerald-800 flex items-center text-lg mb-4">
                     <DollarSign className="w-6 h-6 mr-2" />

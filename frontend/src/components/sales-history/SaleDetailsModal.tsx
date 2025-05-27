@@ -29,12 +29,12 @@ export default function SaleDetailsModal({
             <h2 className="text-xl font-bold text-gray-900">Sale Details</h2>
             <button
               onClick={() => setIsDetailDialogOpen(false)}
-              className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-700"
+              className="w-8 h-8 rounded-lg hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-700 cursor-pointer"
             >
               ×
             </button>
           </div>
-          <p className="text-gray-600 mt-1">Order #{selectedSale.id}</p>
+          <p className="text-gray-600 mt-1">Order #{selectedSale.saleNumber}</p>
         </div>
 
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
@@ -62,6 +62,17 @@ export default function SaleDetailsModal({
                 )}
               </div>
               <div className="space-y-1">
+                <h4 className="text-sm font-medium text-gray-600">Cashier</h4>
+                <p className="text-sm text-gray-900">
+                  {selectedSale.user?.name || "N/A"}
+                </p>
+                {selectedSale.user?.email && (
+                  <p className="text-sm text-gray-500">
+                    {selectedSale.user.email}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1">
                 <h4 className="text-sm font-medium text-gray-600">
                   Payment Method
                 </h4>
@@ -70,7 +81,7 @@ export default function SaleDetailsModal({
                     selectedSale.paymentMethod
                   )}`}
                 >
-                  {selectedSale.paymentMethod}
+                  {selectedSale.paymentMethod.replace("_", " ").toLowerCase()}
                 </span>
               </div>
               <div className="space-y-1">
@@ -80,9 +91,15 @@ export default function SaleDetailsModal({
                     selectedSale.status
                   )}`}
                 >
-                  {selectedSale.status}
+                  {selectedSale.status.toLowerCase()}
                 </span>
               </div>
+              {selectedSale.notes && (
+                <div className="space-y-1">
+                  <h4 className="text-sm font-medium text-gray-600">Notes</h4>
+                  <p className="text-sm text-gray-900">{selectedSale.notes}</p>
+                </div>
+              )}
             </div>
 
             {/* Divider */}
@@ -94,7 +111,7 @@ export default function SaleDetailsModal({
               <div className="space-y-3">
                 {selectedSale.items.map((item: any, index: any) => (
                   <motion.div
-                    key={`${item.productId}-${index}`}
+                    key={`${item.product.id}-${index}`}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.1 }}
@@ -102,10 +119,13 @@ export default function SaleDetailsModal({
                   >
                     <div className="flex-1">
                       <h5 className="font-medium text-gray-900">
-                        {item.productName}
+                        {item.product.name}
                       </h5>
                       <p className="text-sm text-gray-500">
-                        Code: {item.productCode}
+                        Code: {item.product.code}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Unit Price: ${(item.unitPrice / 100).toFixed(2)}
                       </p>
                     </div>
                     <div className="text-right">
@@ -113,7 +133,7 @@ export default function SaleDetailsModal({
                         Qty: {item.quantity}
                       </p>
                       <p className="font-medium text-gray-900">
-                        ${(item.price * item.quantity).toFixed(2)}
+                        ${(item.total / 100).toFixed(2)}
                       </p>
                     </div>
                   </motion.div>
@@ -129,14 +149,22 @@ export default function SaleDetailsModal({
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Subtotal</span>
                 <span className="font-medium text-gray-900">
-                  ${selectedSale.subtotal.toFixed(2)}
+                  ${(selectedSale.totalAmount / 100).toFixed(2)}
                 </span>
               </div>
-              {selectedSale.taxAmount > 0 && (
+              {selectedSale.discount > 0 && (
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-600">Discount</span>
+                  <span className="font-medium text-red-600">
+                    -${(selectedSale.discount / 100).toFixed(2)}
+                  </span>
+                </div>
+              )}
+              {selectedSale.tax > 0 && (
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Tax</span>
                   <span className="font-medium text-gray-900">
-                    ${selectedSale.taxAmount.toFixed(2)}
+                    ${(selectedSale.tax / 100).toFixed(2)}
                   </span>
                 </div>
               )}
@@ -146,10 +174,31 @@ export default function SaleDetailsModal({
                     Total
                   </span>
                   <span className="text-lg font-bold text-gray-900">
-                    ${selectedSale.totalAmount.toFixed(2)}
+                    ${(selectedSale.finalAmount / 100).toFixed(2)}
                   </span>
                 </div>
               </div>
+
+              {/* Payment Details */}
+              {selectedSale.amountReceived && (
+                <div className="mt-4 pt-3 border-t border-gray-100">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Amount Received</span>
+                    <span className="font-medium text-gray-900">
+                      ${(selectedSale.amountReceived / 100).toFixed(2)}
+                    </span>
+                  </div>
+                  {selectedSale.changeAmount &&
+                    selectedSale.changeAmount > 0 && (
+                      <div className="flex justify-between items-center mt-1">
+                        <span className="text-gray-600">Change Given</span>
+                        <span className="font-medium text-gray-900">
+                          ${(selectedSale.changeAmount / 100).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                </div>
+              )}
             </div>
 
             {/* Action Buttons */}
@@ -158,7 +207,7 @@ export default function SaleDetailsModal({
                 onClick={() => {
                   // Generate receipt data for this sale
                   const receiptData = [
-                    `Order ID: ${selectedSale.id}`,
+                    `Sale Number: ${selectedSale.saleNumber}`,
                     `Date: ${formatDate(selectedSale.createdAt)} ${formatTime(
                       selectedSale.createdAt
                     )}`,
@@ -166,23 +215,43 @@ export default function SaleDetailsModal({
                     selectedSale.customerPhone
                       ? `Phone: ${selectedSale.customerPhone}`
                       : "",
+                    `Cashier: ${selectedSale.user?.name || "N/A"}`,
+                    selectedSale.notes ? `Notes: ${selectedSale.notes}` : "",
                     "",
                     "Items:",
                     ...selectedSale.items.map(
                       (item: any) =>
-                        `${item.productName} (${item.productCode}) - Qty: ${
+                        `${item.product.name} (${item.product.code}) - Qty: ${
                           item.quantity
-                        } - ${(item.price * item.quantity).toFixed(2)}`
+                        } - $${(item.total / 100).toFixed(2)}`
                     ),
                     "",
-                    `Subtotal: ${selectedSale.subtotal.toFixed(2)}`,
-                    selectedSale.taxAmount > 0
-                      ? `Tax: ${selectedSale.taxAmount.toFixed(2)}`
+                    `Subtotal: $${(selectedSale.totalAmount / 100).toFixed(2)}`,
+                    selectedSale.discount > 0
+                      ? `Discount: -$${(selectedSale.discount / 100).toFixed(
+                          2
+                        )}`
                       : "",
-                    `Total: ${selectedSale.totalAmount.toFixed(2)}`,
+                    selectedSale.tax > 0
+                      ? `Tax: $${(selectedSale.tax / 100).toFixed(2)}`
+                      : "",
+                    `Total: $${(selectedSale.finalAmount / 100).toFixed(2)}`,
                     "",
-                    `Payment Method: ${selectedSale.paymentMethod}`,
+                    `Payment Method: ${selectedSale.paymentMethod.replace(
+                      "_",
+                      " "
+                    )}`,
                     `Status: ${selectedSale.status}`,
+                    selectedSale.amountReceived
+                      ? `Amount Received: $${(
+                          selectedSale.amountReceived / 100
+                        ).toFixed(2)}`
+                      : "",
+                    selectedSale.changeAmount && selectedSale.changeAmount > 0
+                      ? `Change Given: $${(
+                          selectedSale.changeAmount / 100
+                        ).toFixed(2)}`
+                      : "",
                   ]
                     .filter(Boolean)
                     .join("\n");
@@ -193,7 +262,7 @@ export default function SaleDetailsModal({
                   const url = window.URL.createObjectURL(blob);
                   const a = document.createElement("a");
                   a.href = url;
-                  a.download = `receipt-${selectedSale.id}.txt`;
+                  a.download = `receipt-${selectedSale.saleNumber}.txt`;
                   a.click();
                   window.URL.revokeObjectURL(url);
                 }}

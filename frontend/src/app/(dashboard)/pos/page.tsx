@@ -181,7 +181,7 @@ export default function POSpage() {
       setCart([...cart, newItem]);
     }
 
-    toast.success(`${product.name} added to cart`);
+    // toast.success(`${product.name} added to cart`);
   };
 
   const updateCartItemQuantity = (id: string, newQuantity: number) => {
@@ -215,7 +215,7 @@ export default function POSpage() {
   };
 
   const processCheckout = async (checkoutData: {
-    paymentMethod: "cash" | "card" | "digital";
+    paymentMethod: "CASH" | "CARD" | "DIGITAL_WALLET";
     customerName?: string;
     customerPhone?: string;
     notes?: string;
@@ -271,7 +271,7 @@ export default function POSpage() {
       // In production, you would use: await api.sales.create(saleDataForAPI);
       // await new Promise((resolve) => setTimeout(resolve, 1000));
       const response = await api.sales.create(saleDataForAPI);
-      console.log(" POSpage ~ response:", response)
+      console.log(" POSpage ~ response:", response);
 
       // Simulate stock reduction by reloading products
       await loadProducts(currentPage, itemsPerPage, activeSearchQuery);

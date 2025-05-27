@@ -1,16 +1,34 @@
 "use client";
 
 import React, { useState } from "react";
-import { ShoppingCart, BarChart3, Package, Menu, X, Store } from "lucide-react";
+import {
+  ShoppingCart,
+  BarChart3,
+  Package,
+  Menu,
+  X,
+  Store,
+  User,
+  Power,
+} from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeLink, setActiveLink] = useState("");
 
+  const router = useRouter();
   const pathname = usePathname();
   console.log(" Header ~ pathname:", pathname);
+  const localData = localStorage.getItem("POSuser");
+  const parsedData = localData ? JSON.parse(localData) : null;
+  console.log(" useEffect ~ parsedData:", parsedData);
 
   const navLinks = [
     { id: "pos", label: "POS", icon: ShoppingCart, href: "/pos" },
@@ -26,6 +44,18 @@ export default function Header() {
   const handleLinkClick = (linkId: any) => {
     setActiveLink(linkId);
     setIsMenuOpen(false);
+  };
+
+  const handleLogout = () => {
+    // Clear localStorage
+    localStorage.removeItem("POSuser");
+    localStorage.removeItem("token"); // Remove token if stored separately
+
+    // Close modal
+    // setIsLogoutModalOpen(false);
+
+    // Redirect to login page
+    router.push("/login");
   };
 
   return (
@@ -75,17 +105,50 @@ export default function Header() {
           {/* User Profile & Mobile Menu */}
           <div className="flex items-center space-x-4">
             {/* User Avatar */}
-            <div className="hidden sm:flex items-center justify-end space-x-3 mr-0">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">
-                  Nadim Chowdhury
-                </p>
-                <p className="text-xs text-gray-500">Manager</p>
-              </div>
-              <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center text-white font-medium text-sm shadow-lg">
-                NC
-              </div>
-            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <div className="hidden sm:flex items-center justify-end space-x-3 mr-0 cursor-pointer">
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-gray-900">
+                      {parsedData?.data?.user?.name || "Nadim Chowdhury"}
+                    </p>
+                    <p className="text-xs text-gray-500 capitalize">
+                      {parsedData?.data?.user?.role || "Manager"}
+                    </p>
+                  </div>
+                  <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-blue-500 rounded-full flex items-center justify-center text-white font-medium text-sm shadow-lg">
+                    <User className="w-5 h-5" />
+                  </div>
+                </div>
+              </PopoverTrigger>
+              <PopoverContent className="w-80" align="end">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-gray-500 capitalize">
+                      {parsedData?.data?.user?.username || "Username"}
+                    </p>
+                    <p className="text-xs font-medium text-gray-500 capitalize">
+                      {parsedData?.data?.user?.email || "Email"}
+                    </p>
+                    <p className="text-xs font-medium capitalize">
+                      {parsedData?.data?.user?.isActive ? (
+                        <span className="text-green-500">Active</span>
+                      ) : (
+                        <span className="text-red-500">Inactive</span>
+                      )}
+                    </p>
+                  </div>
+                  <div>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors duration-200 cursor-pointer"
+                    >
+                      <Power className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
 
             {/* Mobile Menu Button */}
             <button

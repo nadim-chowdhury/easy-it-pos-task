@@ -13,6 +13,8 @@ import { ProductsService } from '../products/products.service';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { SaleResponseDto } from './dto/sale-response.dto';
 import { PaginationDto } from '../products/dto/pagination.dto';
+import { ConfigService } from '@nestjs/config';
+import { SearchSalesDto } from './dto/search-sales.dto';
 
 @Injectable()
 export class SalesService {
@@ -22,6 +24,7 @@ export class SalesService {
     private readonly prisma: PrismaService,
     private readonly productsService: ProductsService,
     private readonly jwtService: JwtService, // Add JWT service
+    private readonly configService: ConfigService,
   ) {}
 
   async create(
@@ -47,8 +50,10 @@ export class SalesService {
       throw new BadRequestException('Sale must contain at least one item');
     }
 
+    const token = accessToken.replace(/^Bearer\s+/i, '').trim();
+
     // Extract user from access token
-    const userId = await this.getUserIdFromToken(accessToken);
+    const userId = await this.getUserIdFromToken(token);
     console.log(' userId:', userId);
 
     try {
@@ -234,7 +239,11 @@ export class SalesService {
       // Verify and decode the JWT token
       let decoded;
       try {
-        decoded = this.jwtService.verify(token);
+        // decoded = this.jwtService.verify(token);
+        decoded = this.jwtService.verify(token, {
+          secret: this.configService.get('JWT_SECRET') || 'your-secret-key',
+        });
+
         this.logger.debug('Token successfully verified');
         this.logger.debug(`Token payload: ${JSON.stringify(decoded, null, 2)}`);
       } catch (jwtError) {
@@ -253,6 +262,8 @@ export class SalesService {
           );
         }
       }
+
+      console.log(' getUserIdFromToken ~ decoded:', decoded);
 
       // Extract user ID from token payload - check standard claims first
       const userId = decoded.sub || decoded.userId || decoded.id;
@@ -410,6 +421,214 @@ export class SalesService {
       }
       this.logger.error(`Error finding sale ${id}`, error);
       throw new BadRequestException('Failed to find sale');
+    }
+  }
+
+  async searchSales(searchDto: SearchSalesDto, accessToken?: string) {
+    const {
+      q, // Accept 'q' parameter
+      searchTerm, // Keep backward compatibility
+      customerName,
+      customerPhone,
+      saleNumber,
+      paymentMethod,
+      startDate,
+      endDate,
+      minAmount,
+      maxAmount,
+      userId,
+      page = 1,
+      limit = 10,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+    } = searchDto;
+
+    const skip = (page - 1) * limit;
+
+    try {
+      // Build dynamic where clause
+      const whereClause: any = {};
+
+      // Use 'q' if provided, otherwise fall back to 'searchTerm' for backward compatibility
+      const finalSearchTerm = q || searchTerm;
+
+      // Text search across multiple fields
+      if (finalSearchTerm) {
+        whereClause.OR = [
+          {
+            saleNumber: {
+              contains: finalSearchTerm,
+              mode: 'insensitive',
+            },
+          },
+          {
+            customerName: {
+              contains: finalSearchTerm,
+              mode: 'insensitive',
+            },
+          },
+          {
+            customerPhone: {
+              contains: finalSearchTerm,
+              mode: 'insensitive',
+            },
+          },
+          {
+            notes: {
+              contains: finalSearchTerm,
+              mode: 'insensitive',
+            },
+          },
+        ];
+      }
+
+      // Specific field filters
+      if (customerName) {
+        whereClause.customerName = {
+          contains: customerName,
+          mode: 'insensitive',
+        };
+      }
+
+      if (customerPhone) {
+        whereClause.customerPhone = {
+          contains: customerPhone,
+          mode: 'insensitive',
+        };
+      }
+
+      if (saleNumber) {
+        whereClause.saleNumber = {
+          contains: saleNumber,
+          mode: 'insensitive',
+        };
+      }
+
+      if (paymentMethod) {
+        whereClause.paymentMethod = paymentMethod;
+      }
+
+      // Date range filter
+      if (startDate || endDate) {
+        whereClause.createdAt = {};
+        if (startDate) {
+          whereClause.createdAt.gte = new Date(startDate);
+        }
+        if (endDate) {
+          whereClause.createdAt.lte = new Date(endDate);
+        }
+      }
+
+      // Amount range filter
+      if (minAmount !== undefined || maxAmount !== undefined) {
+        whereClause.finalAmount = {};
+        if (minAmount !== undefined) {
+          whereClause.finalAmount.gte = minAmount;
+        }
+        if (maxAmount !== undefined) {
+          whereClause.finalAmount.lte = maxAmount;
+        }
+      }
+
+      // User filter
+      if (userId) {
+        whereClause.userId = userId;
+      }
+
+      // Role-based filtering if access token is provided
+      if (accessToken) {
+        const currentUserId = await this.getUserIdFromToken(accessToken);
+        const user = await this.prisma.user.findUnique({
+          where: { id: currentUserId },
+          select: { role: true },
+        });
+
+        // If user is a cashier, only show their sales (unless they're searching for someone else's sales and they have permission)
+        if (user?.role === 'CASHIER' && !userId) {
+          whereClause.userId = currentUserId;
+        }
+      }
+
+      // Execute search query with count
+      const [sales, total] = await Promise.all([
+        this.prisma.sale.findMany({
+          where: whereClause,
+          skip,
+          take: limit,
+          orderBy: { [sortBy]: sortOrder },
+          include: {
+            items: {
+              include: {
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    code: true,
+                    price: true,
+                  },
+                },
+              },
+            },
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                username: true,
+                role: true,
+              },
+            },
+          },
+        }),
+        this.prisma.sale.count({ where: whereClause }),
+      ]);
+
+      // Calculate summary statistics for the search results
+      const summaryStats = await this.prisma.sale.aggregate({
+        where: whereClause,
+        _sum: {
+          finalAmount: true,
+          tax: true,
+          discount: true,
+        },
+        _avg: {
+          finalAmount: true,
+        },
+        _count: true,
+      });
+
+      return {
+        data: sales.map((sale) => this.mapToResponseDto(sale)),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
+        summary: {
+          totalSales: summaryStats._count,
+          totalRevenue: Number(summaryStats._sum.finalAmount ?? 0),
+          averageOrderValue: Number(summaryStats._avg.finalAmount ?? 0),
+          totalTax: Number(summaryStats._sum.tax ?? 0),
+          totalDiscount: Number(summaryStats._sum.discount ?? 0),
+        },
+        searchCriteria: {
+          searchTerm: finalSearchTerm, // Return the actual search term used
+          q: finalSearchTerm, // Also include 'q' for consistency
+          customerName,
+          customerPhone,
+          saleNumber,
+          paymentMethod,
+          startDate,
+          endDate,
+          minAmount,
+          maxAmount,
+          userId,
+        },
+      };
+    } catch (error) {
+      this.logger.error('Error searching sales', error);
+      throw new BadRequestException('Failed to search sales');
     }
   }
 

@@ -89,6 +89,7 @@ export interface Product {
   minStock: number;
   category?: string | null;
   barcode?: string | null;
+  createdBy?: string | null;
   isActive: boolean;
   isLowStock: boolean;
   createdAt: string;
@@ -103,6 +104,7 @@ export interface CreateProductDto {
   stockQty: number;
   category?: string;
   barcode?: string;
+  createdBy?: string;
 }
 
 export interface UpdateProductDto {
@@ -133,7 +135,7 @@ export interface SaleItem {
 
 export interface CreateSaleDto {
   items: SaleItem[];
-  paymentMethod: "cash" | "card" | "digital";
+  paymentMethod: "CASH" | "CARD" | "DIGITAL_WALLET";
   customerName?: string;
   customerPhone?: string;
   notes?: string;
@@ -147,7 +149,7 @@ export interface CreateSaleDto {
 export interface Sale {
   id: string;
   items: SaleItem[];
-  paymentMethod: "cash" | "card" | "digital";
+  paymentMethod: "CASH" | "CARD" | "DIGITAL_WALLET";
   customerName?: string;
   customerPhone?: string;
   notes?: string;
@@ -194,6 +196,19 @@ export interface ProductsQueryParams {
   search?: string;
   category?: string;
   isActive?: boolean;
+}
+
+export interface SalesQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  paymentMethod?: "CASH" | "CARD" | "DIGITAL_WALLET";
+  customerName?: string;
+  customerPhone?: string;
+  startDate?: string;
+  endDate?: string;
+  minAmount?: number;
+  maxAmount?: number;
 }
 
 // ===== AUTH HELPERS =====
@@ -307,6 +322,7 @@ export const productsAPI = {
           category: product.category?.trim() || undefined,
           description: product.description?.trim() || undefined,
           barcode: product.barcode?.trim() || undefined,
+          createdBy: product.createdBy?.trim() || undefined,
         }),
       });
     } catch (error) {
@@ -417,6 +433,7 @@ export const salesAPI = {
    * POST /sales - Accept cart items, reduce stock, and save sale
    */
   create: async (sale: CreateSaleDto): Promise<ApiResponse<Sale>> => {
+    console.log(" create: ~ sale:", sale);
     try {
       // Validate sale data
       if (!sale.items || sale.items.length === 0) {
@@ -427,7 +444,7 @@ export const salesAPI = {
         throw new Error("Total amount must be greater than 0");
       }
 
-      if (!["cash", "card", "digital"].includes(sale.paymentMethod)) {
+      if (!["CASH", "CARD", "DIGITAL_WALLET"].includes(sale.paymentMethod)) {
         throw new Error("Invalid payment method");
       }
 
@@ -496,6 +513,56 @@ export const salesAPI = {
     } catch (error) {
       console.error("Error fetching sales:", error);
       throw new Error("Failed to fetch sales history");
+    }
+  },
+
+  /**
+   * GET /sales/search?q=query - Search sales by customer name, phone, or notes
+   */
+  search: async (
+    query: string,
+    params?: Omit<SalesQueryParams, "search">
+  ): Promise<ApiResponse<{ data: Sale[]; pagination: PaginationInfo }>> => {
+    try {
+      if (!query?.trim()) {
+        return {
+          success: true,
+          message: "Empty query",
+          data: {
+            data: [],
+            pagination: {
+              page: 1,
+              limit: 10,
+              total: 0,
+              totalPages: 0,
+              hasNext: false,
+              hasPrev: false,
+            },
+          },
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      const queryParams = new URLSearchParams();
+      queryParams.append("q", query.trim());
+
+      if (params?.page) queryParams.append("page", params.page.toString());
+      if (params?.limit) queryParams.append("limit", params.limit.toString());
+      if (params?.paymentMethod)
+        queryParams.append("paymentMethod", params.paymentMethod);
+      if (params?.startDate) queryParams.append("startDate", params.startDate);
+      if (params?.endDate) queryParams.append("endDate", params.endDate);
+      if (params?.minAmount)
+        queryParams.append("minAmount", params.minAmount.toString());
+      if (params?.maxAmount)
+        queryParams.append("maxAmount", params.maxAmount.toString());
+
+      return await apiRequest<
+        ApiResponse<{ data: Sale[]; pagination: PaginationInfo }>
+      >(`/sales/search?${queryParams.toString()}`);
+    } catch (error) {
+      console.error("Error searching sales:", error);
+      throw new Error("Failed to search sales");
     }
   },
 

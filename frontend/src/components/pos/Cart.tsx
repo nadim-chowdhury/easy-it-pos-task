@@ -24,7 +24,7 @@ interface CartProps {
   updateQuantity: (id: string, quantity: number) => void;
   removeFromCart: (id: string) => void;
   processCheckout: (checkoutData: {
-    paymentMethod: "cash" | "card" | "digital";
+    paymentMethod: "CASH" | "CARD" | "DIGITAL_WALLET";
     customerName?: string;
     customerPhone?: string;
     notes?: string;

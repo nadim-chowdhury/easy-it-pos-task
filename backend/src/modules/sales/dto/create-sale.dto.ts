@@ -88,18 +88,17 @@ export class CreateSaleDto {
 
   @ApiProperty({
     description: 'Payment method used for the transaction',
-    enum: ['CASH', 'CREDIT_CARD', 'DEBIT_CARD', 'DIGITAL_WALLET'],
+    enum: ['CASH', 'CARD', 'DIGITAL_WALLET'],
     example: 'CASH',
     enumName: 'PaymentMethod',
   })
-  @IsEnum(['CASH', 'CREDIT_CARD', 'DEBIT_CARD', 'DIGITAL_WALLET'], {
-    message:
-      'Payment method must be one of: CASH, CREDIT_CARD, DEBIT_CARD, DIGITAL_WALLET',
+  @IsEnum(['CASH', 'CARD', 'DIGITAL_WALLET'], {
+    message: 'Payment method must be one of: CASH, CARD,  DIGITAL_WALLET',
   })
   @Transform(({ value }) =>
     typeof value === 'string' ? value.toUpperCase() : value,
   )
-  paymentMethod: 'CASH' | 'CREDIT_CARD' | 'DEBIT_CARD' | 'DIGITAL_WALLET';
+  paymentMethod: 'CASH' | 'CARD' | 'DIGITAL_WALLET';
 
   @ApiPropertyOptional({
     description: 'Customer name',

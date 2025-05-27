@@ -102,6 +102,21 @@ export default function ProductForm({
 
     if (!validateForm()) return;
 
+    // Step 1: Get the JSON string from localStorage
+    const storedData = localStorage.getItem("POSuser");
+
+    if (!storedData) {
+      console.error("No USER data found");
+      return;
+    }
+
+    // Step 2: Parse the JSON string into an object
+    const parsedData = JSON.parse(storedData);
+
+    // Step 3: Access the user ID
+    const userId = parsedData?.data?.user?.id;
+    console.log("handleSubmit ~ userId:", userId);
+
     // Convert form data to match API interfaces
     const submitData = {
       name: formData.name.trim(),
@@ -109,6 +124,7 @@ export default function ProductForm({
       price: parseFloat(formData.price),
       stockQty: parseInt(formData.stockQty),
       category: formData.category.trim() || undefined, // Only include if not empty
+      createdBy: userId,
     };
 
     onSubmit(submitData);

@@ -16,10 +16,13 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  X,
 } from "lucide-react";
 import { salesHistoryApi } from "@/utils/sales-history-demo-data";
 import SaleDetailsModal from "@/components/sales-history/SaleDetailsModal";
 import api from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const pageVariants = {
   initial: { opacity: 0, y: 20 },
@@ -41,10 +44,13 @@ export default function SalesHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
   const [selectedSale, setSelectedSale] = useState<any>(null);
+  console.log(" SalesHistoryPage ~ selectedSale:", selectedSale);
   const [filterPeriod, setFilterPeriod] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -83,7 +89,6 @@ export default function SalesHistoryPage() {
     if (filterPeriod !== "all") {
       const saleDate = new Date(sale.createdAt);
       const today = new Date();
-
       switch (filterPeriod) {
         case "today":
           passesDateFilter = saleDate.toDateString() === today.toDateString();
@@ -100,7 +105,6 @@ export default function SalesHistoryPage() {
           break;
       }
     }
-
     // Filter by search term
     let passesSearchFilter = true;
     if (searchTerm.trim()) {
@@ -114,14 +118,13 @@ export default function SalesHistoryPage() {
             item.productCode.toLowerCase().includes(term)
         );
     }
-
     return passesDateFilter && passesSearchFilter;
   });
 
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterPeriod, searchTerm]);
+  }, [filterPeriod]);
 
   // Pagination calculations
   const totalItems = filteredSales.length;
@@ -132,7 +135,7 @@ export default function SalesHistoryPage() {
 
   const calculateStats = () => {
     const completedSales = filteredSales.filter(
-      (sale: any) => sale.status === "completed"
+      (sale: any) => sale.status === "COMPLETED"
     );
     const totalRevenue = completedSales.reduce(
       (sum: any, sale: any) => sum + sale.totalAmount,
@@ -172,11 +175,11 @@ export default function SalesHistoryPage() {
 
   const getPaymentMethodColor = (method: any) => {
     switch (method) {
-      case "cash":
+      case "CASH":
         return "bg-emerald-50 text-emerald-700 border-emerald-200";
-      case "card":
+      case "CARD":
         return "bg-blue-50 text-blue-700 border-blue-200";
-      case "digital":
+      case "DIGITAL_WALLET":
         return "bg-purple-50 text-purple-700 border-purple-200";
       default:
         return "bg-gray-50 text-gray-700 border-gray-200";
@@ -185,9 +188,9 @@ export default function SalesHistoryPage() {
 
   const getStatusColor = (status: any) => {
     switch (status) {
-      case "completed":
+      case "COMPLETED":
         return "bg-green-50 text-green-700 border-green-200";
-      case "refunded":
+      case "REFUNDED":
         return "bg-red-50 text-red-700 border-red-200";
       default:
         return "bg-gray-50 text-gray-700 border-gray-200";
@@ -279,6 +282,77 @@ export default function SalesHistoryPage() {
     }
 
     return pages;
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSearch();
+    }
+  };
+
+  const handleSearch = async () => {
+    // if (searchTerm.trim() === searchQuery.trim()) return; // Don't search if query hasn't changed
+
+    setIsSearching(true);
+    // setSearchQuery(searchTerm.trim());
+    setCurrentPage(1); // Reset to first page
+
+    try {
+      setError(null);
+
+      if (searchQuery.trim()) {
+        // Search with API
+        const response = await api.sales.search(searchQuery.trim(), {
+          page: 1,
+          limit: 10, // Get all results for client-side filtering by period
+        });
+        setSales(response.data.data || []);
+      } else {
+        // If search term is empty, fetch all sales
+        const response = await api.sales.getAll();
+        setSales(response.data.data || []);
+      }
+    } catch (err) {
+      setError("Failed to search sales data");
+      console.error("Error searching sales:", err);
+
+      // Fallback to demo data on error
+      try {
+        const salesDemoData = await salesHistoryApi.sales.getAll();
+        setSales(salesDemoData);
+      } catch (demoErr) {
+        console.error("Error loading demo data:", demoErr);
+      }
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleClearSearch = async () => {
+    setSearchTerm("");
+    setSearchQuery("");
+    setCurrentPage(1);
+    setIsSearching(true);
+
+    try {
+      setError(null);
+      // Fetch all sales without search filter
+      const response = await api.sales.getAll();
+      setSales(response.data.data || []);
+    } catch (err) {
+      setError("Failed to load sales data");
+      console.error("Error fetching sales:", err);
+
+      // Fallback to demo data on error
+      try {
+        const salesDemoData = await salesHistoryApi.sales.getAll();
+        setSales(salesDemoData);
+      } catch (demoErr) {
+        console.error("Error loading demo data:", demoErr);
+      }
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   if (loading) {
@@ -374,22 +448,62 @@ export default function SalesHistoryPage() {
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
             {/* Search */}
-            <div className="relative flex-1 lg:w-64">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search orders, customers, products..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="bg-white w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              />
+            <div className="flex items-center flex-1 lg:w-auto">
+              {/* Clear Button */}
+              {(searchTerm || searchQuery) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleClearSearch}
+                  disabled={isSearching}
+                  className="gap-2 text-muted-foreground cursor-pointer mr-2 rounded-full"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+
+              <div className="relative flex-1 lg:w-64">
+                {/* <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" /> */}
+                <Input
+                  type="text"
+                  placeholder="Search orders, customers, products..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  className="py-2.5 rounded-r-none border-r-0 focus-visible:ring-0 focus-visible:ring-offset-1"
+                />
+              </div>
+
+              {/* Search Button */}
+              <Button
+                type="submit"
+                className="rounded-l-none w-12 cursor-pointer overflow-hidden"
+                disabled={isSearching}
+                onClick={handleSearch}
+              >
+                {isSearching ? (
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{
+                      duration: 1,
+                      repeat: Infinity,
+                      ease: "linear",
+                    }}
+                    className="h-4 w-4"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </motion.div>
+                ) : (
+                  <Search className="h-4 w-4" />
+                )}
+              </Button>
             </div>
 
             {/* Filter */}
             <select
               value={filterPeriod}
               onChange={(e) => setFilterPeriod(e.target.value)}
-              className="px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-[120px] cursor-pointer"
+              className="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white min-w-[120px] cursor-pointer"
             >
               <option value="all" className="cursor-pointer">
                 All Time
@@ -410,7 +524,7 @@ export default function SalesHistoryPage() {
               <button
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="px-4 py-2.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                className="px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 cursor-pointer"
               >
                 <motion.div
                   animate={isRefreshing ? { rotate: 360 } : { rotate: 0 }}
@@ -426,7 +540,7 @@ export default function SalesHistoryPage() {
 
               <button
                 onClick={handleExportSales}
-                className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 flex items-center gap-2 cursor-pointer"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 flex items-center gap-2 cursor-pointer"
               >
                 <Download className="h-4 w-4" />
                 Export
@@ -619,7 +733,7 @@ export default function SalesHistoryPage() {
                         >
                           <td className="py-4 px-6">
                             <div className="font-medium text-gray-900">
-                              {sale.id}
+                              {sale.saleNumber || "DEMO-20250505-0001"}
                             </div>
                           </td>
                           <td className="py-4 px-6">
@@ -670,7 +784,9 @@ export default function SalesHistoryPage() {
                                 sale.paymentMethod
                               )}`}
                             >
-                              {sale.paymentMethod}
+                              {sale.paymentMethod === "DIGITAL_WALLET"
+                                ? "DIGITAL WALLET"
+                                : sale.paymentMethod}
                             </span>
                           </td>
                           <td className="py-4 px-6">

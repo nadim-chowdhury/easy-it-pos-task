@@ -1,4 +1,5 @@
 import Header from "@/components/common/Header";
+import ProtectedRoute from "@/components/providers/protected-route-provider";
 
 export default function DashboardLayout({
   children,
@@ -6,9 +7,9 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div>
+    <ProtectedRoute>
       <Header />
       {children}
-    </div>
+    </ProtectedRoute>
   );
 }

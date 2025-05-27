@@ -35,6 +35,7 @@ import { CreateSaleDto } from './dto/create-sale.dto';
 import { SaleResponseDto } from './dto/sale-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PaginationDto } from '../products/dto/pagination.dto';
+import { SearchSalesDto } from './dto/search-sales.dto';
 
 @ApiTags('Sales Management')
 @Controller('sales')
@@ -277,6 +278,205 @@ export class SalesController {
   })
   async getTodaySales() {
     return this.salesService.getTodaySales();
+  }
+
+  @Get('search')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Search sales with advanced filtering and pagination',
+    description: `
+    Advanced search functionality for sales transactions with multiple filter options:
+    - Full-text search across sale number, customer name, phone, and notes
+    - Date range filtering
+    - Amount range filtering
+    - Payment method filtering
+    - User/cashier filtering
+    - Pagination and sorting
+    
+    Returns search results with summary statistics and applied search criteria.
+  `,
+  })
+  @ApiQuery({
+    name: 'searchTerm',
+    required: false,
+    type: String,
+    description: 'Search across sale number, customer name, phone, and notes',
+    example: 'John Doe',
+  })
+  @ApiQuery({
+    name: 'customerName',
+    required: false,
+    type: String,
+    description: 'Filter by customer name',
+    example: 'John Doe',
+  })
+  @ApiQuery({
+    name: 'customerPhone',
+    required: false,
+    type: String,
+    description: 'Filter by customer phone number',
+    example: '+1234567890',
+  })
+  @ApiQuery({
+    name: 'saleNumber',
+    required: false,
+    type: String,
+    description: 'Filter by sale number',
+    example: 'SAL-20241201-0001',
+  })
+  @ApiQuery({
+    name: 'paymentMethod',
+    required: false,
+    enum: [
+      'CASH',
+      'CREDIT_CARD',
+      'DEBIT_CARD',
+      'MOBILE_PAYMENT',
+      'BANK_TRANSFER',
+    ],
+    description: 'Filter by payment method',
+    example: 'CASH',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    type: String,
+    description: 'Start date for date range filter (ISO 8601)',
+    example: '2024-12-01T00:00:00Z',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    type: String,
+    description: 'End date for date range filter (ISO 8601)',
+    example: '2024-12-31T23:59:59Z',
+  })
+  @ApiQuery({
+    name: 'minAmount',
+    required: false,
+    type: Number,
+    description: 'Minimum total amount',
+    example: 50.0,
+  })
+  @ApiQuery({
+    name: 'maxAmount',
+    required: false,
+    type: Number,
+    description: 'Maximum total amount',
+    example: 1000.0,
+  })
+  @ApiQuery({
+    name: 'userId',
+    required: false,
+    type: String,
+    description: 'Filter by cashier/user ID',
+    example: '123e4567-e89b-12d3-a456-426614174001',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (starts from 1)',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Number of items per page (max 100)',
+    example: 10,
+  })
+  @ApiQuery({
+    name: 'sortBy',
+    required: false,
+    type: String,
+    description: 'Field to sort by',
+    example: 'createdAt',
+    enum: [
+      'createdAt',
+      'updatedAt',
+      'finalAmount',
+      'saleNumber',
+      'customerName',
+    ],
+  })
+  @ApiQuery({
+    name: 'sortOrder',
+    required: false,
+    type: String,
+    description: 'Sort order',
+    example: 'desc',
+    enum: ['asc', 'desc'],
+  })
+  @ApiOkResponse({
+    description:
+      'Search results retrieved successfully with summary statistics',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/SaleResponseDto' },
+        },
+        pagination: {
+          type: 'object',
+          properties: {
+            page: { type: 'number', example: 1 },
+            limit: { type: 'number', example: 10 },
+            total: { type: 'number', example: 85 },
+            totalPages: { type: 'number', example: 9 },
+          },
+        },
+        summary: {
+          type: 'object',
+          properties: {
+            totalSales: { type: 'number', example: 85 },
+            totalRevenue: { type: 'number', example: 6750.25 },
+            averageOrderValue: { type: 'number', example: 79.41 },
+            totalTax: { type: 'number', example: 573.77 },
+            totalDiscount: { type: 'number', example: 135.5 },
+          },
+        },
+        searchCriteria: {
+          type: 'object',
+          properties: {
+            searchTerm: { type: 'string', example: 'John Doe' },
+            customerName: { type: 'string', example: 'John Doe' },
+            customerPhone: { type: 'string', example: '+1234567890' },
+            saleNumber: { type: 'string', example: 'SAL-20241201-0001' },
+            paymentMethod: { type: 'string', example: 'CASH' },
+            startDate: { type: 'string', example: '2024-12-01T00:00:00Z' },
+            endDate: { type: 'string', example: '2024-12-31T23:59:59Z' },
+            minAmount: { type: 'number', example: 50.0 },
+            maxAmount: { type: 'number', example: 1000.0 },
+            userId: {
+              type: 'string',
+              example: '123e4567-e89b-12d3-a456-426614174001',
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid search parameters',
+    schema: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        message: {
+          type: 'string',
+          example: 'Invalid date format or search parameters',
+        },
+        error: { type: 'string', example: 'Bad Request' },
+      },
+    },
+  })
+  async searchSales(
+    @Query() searchDto: SearchSalesDto,
+    @Headers('authorization') authorization?: string,
+  ) {
+    return this.salesService.searchSales(searchDto, authorization);
   }
 
   @Get('analytics')
