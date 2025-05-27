@@ -1,7 +1,7 @@
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
-// Generic API request handler with better error handling
+// Fixed apiRequest function with proper token handling
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -9,19 +9,42 @@ async function apiRequest<T>(
   const url = `${API_BASE_URL}${endpoint}`;
 
   // Get access token from localStorage
-  const accessToken =
-    typeof window !== "undefined"
-      ? JSON.parse(localStorage.getItem("POSuser") || "{}")?.data?.token || null
-      : null;
+  let accessToken = null;
+  if (typeof window !== "undefined") {
+    try {
+      const storedData = localStorage.getItem("POSuser");
+      if (storedData) {
+        const parsedData = JSON.parse(storedData);
+        // Try different possible token locations
+        accessToken =
+          parsedData?.token ||
+          parsedData?.data?.token ||
+          parsedData?.accessToken ||
+          parsedData?.data?.accessToken ||
+          null;
+      }
+    } catch (error) {
+      console.error("Error parsing stored user data:", error);
+    }
+  }
+
+  console.log("Access token:", accessToken);
 
   const config: RequestInit = {
     headers: {
       "Content-Type": "application/json",
+      // Send token without "Bearer " prefix - try this first
+      // ...(accessToken && { Authorization: accessToken }),
       ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
       ...options.headers,
     },
     ...options,
   };
+
+  // If the above doesn't work, try with "Bearer " prefix:
+  // ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
+
+  console.log("Request headers:", config.headers);
 
   try {
     const response = await fetch(url, config);
@@ -32,6 +55,7 @@ async function apiRequest<T>(
       try {
         const errorData = await response.json();
         errorMessage = errorData.message || errorMessage;
+        console.error("API Error Response:", errorData);
       } catch {
         // If response is not JSON, use default error message
       }
@@ -171,6 +195,47 @@ export interface ProductsQueryParams {
   category?: string;
   isActive?: boolean;
 }
+
+// ===== AUTH HELPERS =====
+
+/**
+ * Get stored user data from localStorage
+ */
+export const getUserData = () => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const storedData = localStorage.getItem("POSuser");
+    return storedData ? JSON.parse(storedData) : null;
+  } catch (error) {
+    console.error("Error parsing user data from localStorage:", error);
+    return null;
+  }
+};
+
+/**
+ * Get access token from stored user data
+ */
+export const getAccessToken = () => {
+  const userData = getUserData();
+  return userData?.data?.token || null;
+};
+
+/**
+ * Check if user is authenticated
+ */
+export const isAuthenticated = () => {
+  return !!getAccessToken();
+};
+
+/**
+ * Clear user data (logout)
+ */
+export const clearUserData = () => {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("POSuser");
+  }
+};
 
 // ===== PRODUCT API =====
 export const productsAPI = {
@@ -379,12 +444,14 @@ export const salesAPI = {
         }
       }
 
+      // const userData = getUserData();
       const saleData = {
         ...sale,
         customerName: sale.customerName?.trim() || undefined,
         customerPhone: sale.customerPhone?.trim() || undefined,
         notes: sale.notes?.trim() || undefined,
         totalAmount: Number(sale.totalAmount),
+        // userId: userData?.data?.user?.id || null,
         taxAmount: sale.taxAmount ? Number(sale.taxAmount) : undefined,
         subtotal: sale.subtotal ? Number(sale.subtotal) : undefined,
         amountReceived: sale.amountReceived
@@ -499,6 +566,12 @@ export const formatCurrency = (
 export const api = {
   products: productsAPI,
   sales: salesAPI,
+  auth: {
+    getUserData,
+    getAccessToken,
+    isAuthenticated,
+    clearUserData,
+  },
   utils: {
     calculateCartTotals,
     validateStockAvailability,

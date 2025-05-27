@@ -10,16 +10,21 @@ datasource db {
 model User {
     id        String   @id @default(cuid())
     email     String   @unique
-    username  String   @unique // Add this
+    username  String   @unique
     password  String
     name      String
-    role      String   @default("CASHIER") // Add this
-    isActive  Boolean  @default(true) // Add this
+    role      String   @default("CASHIER") // ADMIN, MANAGER, CASHIER
+    isActive  Boolean  @default(true)
     createdAt DateTime @default(now())
     updatedAt DateTime @updatedAt
 
     sales Sale[]
 
+    // Performance indexes
+    @@index([email])
+    @@index([username])
+    @@index([role])
+    @@index([isActive])
     @@map("users")
 }
 
@@ -40,25 +45,32 @@ model Product {
     StockMovement StockMovement[]
 
     // Performance indexes
-    @@index([name]) // For name-based searches
-    @@index([code]) // For code-based searches
-    @@index([isActive]) // For filtering active products
-    @@index([createdAt]) // For sorting by creation date
-    @@index([name, isActive]) // Composite index for common queries
+    @@index([name])
+    @@index([code])
+    @@index([isActive])
+    @@index([createdAt])
+    @@index([name, isActive])
+    @@index([category])
     @@map("products")
 }
 
 model Sale {
-    id            String   @id @default(cuid())
-    saleNumber    String   @unique // Add this field
-    total         Float
-    finalAmount   Float // Add this field
-    tax           Float    @default(0) // Add this field
-    discount      Float    @default(0) // Add this field
-    paymentMethod String   @default("cash") // Add this field
-    userId        String
-    createdAt     DateTime @default(now())
-    updatedAt     DateTime @updatedAt
+    id             String   @id @default(cuid())
+    saleNumber     String   @unique
+    total          Float // Subtotal before tax and discount
+    finalAmount    Float // Final amount after tax and discount
+    tax            Float    @default(0)
+    discount       Float    @default(0)
+    paymentMethod  String   @default("CASH") // CASH, CARD, DIGITAL_WALLET
+    userId         String // Make required - every sale must have a user
+    notes          String?
+    customerName   String? // Store customer info directly in sale
+    customerPhone  String? // Store customer info directly in sale
+    amountReceived Float? // For cash transactions
+    changeAmount   Float? // For cash transactions
+    status         String   @default("COMPLETED") // COMPLETED, CANCELLED, REFUNDED
+    createdAt      DateTime @default(now())
+    updatedAt      DateTime @updatedAt
 
     user  User       @relation(fields: [userId], references: [id])
     items SaleItem[]
@@ -67,7 +79,11 @@ model Sale {
     @@index([userId])
     @@index([createdAt])
     @@index([userId, createdAt])
-    @@index([saleNumber]) // Add index for saleNumber
+    @@index([saleNumber])
+    @@index([status])
+    @@index([paymentMethod])
+    @@index([customerName]) // For customer lookup
+    @@index([customerPhone]) // For customer lookup
     @@map("sales")
 }
 
@@ -76,14 +92,15 @@ model SaleItem {
     saleId    String
     productId String
     quantity  Int
-    price     Float
+    price     Float // Price at time of sale (for historical accuracy)
 
     sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
     product Product @relation(fields: [productId], references: [id])
 
     // Performance indexes
-    @@index([saleId]) // For sale-specific items
-    @@index([productId]) // For product-specific sales
+    @@index([saleId])
+    @@index([productId])
+    @@index([saleId, productId]) // Composite for common queries
     @@map("sale_items")
 }
 
@@ -91,16 +108,20 @@ model StockMovement {
     id           String   @id @default(cuid())
     productId    String
     movementType String // 'SALE', 'PURCHASE', 'ADJUSTMENT', 'RETURN'
-    quantity     Int
+    quantity     Int // Positive for additions, negative for reductions
     previousQty  Int
     newQty       Int
     reason       String
-    reference    String?
+    reference    String? // Sale ID, Purchase Order, etc.
+    userId       String? // Who made the movement
     createdAt    DateTime @default(now())
 
     product Product @relation(fields: [productId], references: [id])
 
+    // Performance indexes
     @@index([productId])
     @@index([createdAt])
+    @@index([movementType])
+    @@index([productId, createdAt])
     @@map("stock_movements")
 }

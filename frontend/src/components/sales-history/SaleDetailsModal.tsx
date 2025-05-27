@@ -197,14 +197,14 @@ export default function SaleDetailsModal({
                   a.click();
                   window.URL.revokeObjectURL(url);
                 }}
-                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
+                className="flex-1 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
               >
                 <Download className="h-4 w-4" />
                 Download Receipt
               </button>
               <button
                 onClick={() => setIsDetailDialogOpen(false)}
-                className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 cursor-pointer"
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 cursor-pointer"
               >
                 Close
               </button>

@@ -7,6 +7,7 @@ import {
   Query,
   UseGuards,
   Request,
+  Headers,
   HttpStatus,
   ParseUUIDPipe,
 } from '@nestjs/common';
@@ -172,9 +173,9 @@ export class SalesController {
   })
   async create(
     @Body() createSaleDto: CreateSaleDto,
-    @Request() req,
+    @Headers('authorization') authorization: string,
   ): Promise<SaleResponseDto> {
-    return this.salesService.create(createSaleDto, req.user.userId);
+    return this.salesService.create(createSaleDto, authorization);
   }
 
   @Get()

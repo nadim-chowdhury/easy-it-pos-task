@@ -1,12 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { api, Product, CreateProductDto, UpdateProductDto } from "@/lib/api";
+import { motion } from "framer-motion";
 import ProductForm from "@/components/products/ProductForm";
 import ProductList from "@/components/products/ProductList";
 import ProductSearch from "@/components/products/ProductSearch";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,295 +14,112 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { AlertCircle, CheckCircle2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 import demoProducts from "@/utils/demo-products-list";
 import { toast } from "sonner";
 
-// Type for form data (matching the CreateProductDto structure)
-interface ProductFormData {
-  name: string;
-  code: string;
-  price: number;
-  stockQty: number;
-  category?: string;
-  description?: string;
-  barcode?: string;
-}
-
-interface PaginationInfo {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-  hasNext: boolean;
-  hasPrev: boolean;
-}
+// Import the custom hooks
+import {
+  useProducts,
+  useProductSearch,
+  useProductCRUD,
+} from "@/hooks/useProducts";
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [apiPagination, setApiPagination] = useState<PaginationInfo | null>(
-    null
-  );
-  console.log(" ProductsPage ~ products:", products);
-  const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  // Use the products hook for data management and pagination
+  const {
+    products,
+    loading,
+    pagination,
+    currentPage,
+    itemsPerPage,
+    totalProducts,
+    searchQuery: activeSearchQuery,
+    loadProducts,
+    setCurrentPage,
+    setItemsPerPage,
+  } = useProducts({
+    initialItemsPerPage: 12,
+    enableApiPagination: true,
+    demoProducts: demoProducts,
+  });
 
-  // Delete confirmation modal state
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
-
-  // Pagination state - use API pagination when available, fallback to client-side
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(12);
-  const [useApiPagination, setUseApiPagination] = useState(false);
-
-  // Memoize loadProducts with useCallback to prevent unnecessary re-renders
-  const loadProducts = useCallback(
-    async (page = 1, limit = itemsPerPage, search = "") => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Try to fetch from API with pagination
-        const response = await api.products.getAll({
-          page,
-          limit,
-          search: search.trim() || undefined,
-        });
-        console.log(" loadProducts ~ response:", response);
-
-        if ((response as any).success && (response as any).data) {
-          setProducts((response as any).data.data);
-          setApiPagination((response as any).data.pagination);
-          setUseApiPagination(true);
-          setCurrentPage((response as any).data.pagination.page);
-        } else {
-          throw new Error(
-            (response as any).message || "Failed to load products"
-          );
-        }
-      } catch (error: any) {
-        console.error("Error loading products:", error);
-        setError(error.message || "Failed to load products");
-        setUseApiPagination(false);
-        setApiPagination(null);
-        // Fallback to demo data
-        setProducts([]);
-      } finally {
-        setLoading(false);
-      }
+  // Use the search hook for search functionality
+  const {
+    searchQuery,
+    searchLoading,
+    handleSearchChange,
+    handleSearchSubmit,
+    clearSearch,
+  } = useProductSearch({
+    onSearchSuccess: (results, query) => {
+      // Load products with the search query
+      loadProducts(1, itemsPerPage, query);
     },
-    [itemsPerPage]
-  );
+    onSearchError: (error) => {
+      console.error("Search error:", error);
+    },
+    minSearchLength: 2,
+  });
 
-  // Filter products based on search query (client-side filtering for better UX when using demo data)
-  const filteredProducts = useMemo(() => {
-    // If we have API data and pagination info, use API data directly
-    if (products.length > 0 && apiPagination) {
-      // When using API pagination, return products as-is since filtering is done server-side
-      if (useApiPagination) {
-        return products;
-      }
+  // Use the CRUD hook for create, update, delete operations
+  const {
+    loading: crudLoading,
+    isFormOpen,
+    editingProduct,
+    deleteDialogOpen,
+    productToDelete,
+    createProduct,
+    updateProduct,
+    openCreateForm,
+    openEditForm,
+    closeForm,
+    openDeleteDialog,
+    closeDeleteDialog,
+    confirmDelete,
+  } = useProductCRUD({
+    onSuccess: () => {},
+    onError: (action, error) => {
+      console.error(`${action} error:`, error);
+    },
+    reloadProducts: () =>
+      loadProducts(currentPage, itemsPerPage, activeSearchQuery),
+  });
+
+  // Handle form submission (create or update)
+  const handleFormSubmit = async (productData: any) => {
+    if (editingProduct) {
+      await updateProduct(productData);
+    } else {
+      await createProduct(productData);
     }
-
-    // Fallback to demo products or client-side filtering
-    const productsToFilter = products.length > 0 ? products : demoProducts;
-
-    if (!searchQuery.trim()) {
-      return productsToFilter;
-    }
-    return productsToFilter.filter(
-      (product) =>
-        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.code.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [products, searchQuery, apiPagination, useApiPagination]);
-
-  // Get total count for pagination
-  const totalProducts = useMemo(() => {
-    if (useApiPagination && apiPagination) {
-      return apiPagination.total;
-    }
-    return filteredProducts.length;
-  }, [filteredProducts.length, apiPagination, useApiPagination]);
-
-  // Reset to first page when search query or items per page changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, itemsPerPage]);
-
-  // Load products on mount
-  useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
-
-  // Load products with API pagination if search query changes and we have API connection
-  useEffect(() => {
-    if (useApiPagination && searchQuery) {
-      loadProducts(1, itemsPerPage, searchQuery);
-    }
-  }, [searchQuery, useApiPagination, loadProducts, itemsPerPage]);
-
-  // Load products with API pagination when page changes
-  useEffect(() => {
-    if (useApiPagination) {
-      loadProducts(currentPage, itemsPerPage, searchQuery);
-    }
-  }, [currentPage, itemsPerPage, useApiPagination, loadProducts, searchQuery]);
-
-  const handleSearchChange = (query: string) => {
-    setSearchQuery(query);
   };
 
+  // Handle page change - this will automatically reload products
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
 
+  // Handle items per page change - this will automatically reload products
   const handleItemsPerPageChange = (newItemsPerPage: number) => {
     setItemsPerPage(newItemsPerPage);
-    setCurrentPage(1); // Reset to first page
   };
 
-  const handleCreateProduct = async (productData: ProductFormData) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const createData: CreateProductDto = {
-        name: productData.name,
-        code: productData.code,
-        price: productData.price,
-        stockQty: productData.stockQty,
-        category: productData.category,
-        description: productData.description || "",
-        barcode: productData.barcode || "",
-      };
-
-      const response = await api.products.create(createData);
-
-      if ((response as any).success && (response as any).data) {
-        // Reload products to get updated data with pagination
-        await loadProducts(currentPage, itemsPerPage, searchQuery);
-        setIsFormOpen(false);
-        setEditingProduct(null);
-        toast.success("Product created successfully!");
-      } else {
-        throw new Error(
-          (response as any).message || "Failed to create product"
-        );
-      }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to create product");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUpdateProduct = async (productData: ProductFormData) => {
-    if (!editingProduct) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const updateData: UpdateProductDto = {
-        name: productData.name,
-        code: productData.code,
-        price: productData.price,
-        stockQty: productData.stockQty,
-        category: productData.category,
-        description: productData.description,
-        barcode: productData.barcode,
-      };
-
-      const response = await api.products.update(editingProduct.id, updateData);
-
-      if ((response as any).success && (response as any).data) {
-        // Reload products to get updated data
-        await loadProducts(currentPage, itemsPerPage, searchQuery);
-        setIsFormOpen(false);
-        setEditingProduct(null);
-        toast.success("Product updated successfully!");
-      } else {
-        throw new Error(
-          (response as any).message || "Failed to update product"
-        );
-      }
-    } catch (error: any) {
-      setError(error.message || "Failed to update product");
-      toast.error(error.message || "Failed to update product");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFormSubmit = (productData: any) => {
-    if (editingProduct) {
-      handleUpdateProduct(productData);
+  // Custom search submit handler
+  const handleCustomSearchSubmit = (query: string) => {
+    if (query.trim().length >= 2) {
+      handleSearchSubmit(query);
+    } else if (query.trim().length === 0) {
+      clearSearch();
+      loadProducts(1, itemsPerPage, "");
     } else {
-      handleCreateProduct(productData);
+      toast.error("Please enter at least 2 characters to search");
     }
   };
 
-  const handleEdit = (product: Product) => {
-    setEditingProduct(product);
-    setIsFormOpen(true);
-  };
-
-  const handleDelete = (product: Product) => {
-    setProductToDelete(product);
-    setDeleteDialogOpen(true);
-  };
-
-  const confirmDelete = async () => {
-    if (!productToDelete) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await api.products.delete(productToDelete.id);
-
-      if ((response as any).success) {
-        // Reload products to get updated data
-        await loadProducts(currentPage, itemsPerPage, searchQuery);
-        toast.success("Product deleted successfully!");
-      } else {
-        throw new Error(
-          (response as any).message || "Failed to delete product"
-        );
-      }
-    } catch (error: any) {
-      setError(error.message || "Failed to delete product");
-      toast.error(error.message || "Failed to delete product");
-    } finally {
-      setLoading(false);
-      setDeleteDialogOpen(false);
-      setProductToDelete(null);
-    }
-  };
-
-  const cancelDelete = () => {
-    setDeleteDialogOpen(false);
-    setProductToDelete(null);
-  };
-
-  const handleAddProduct = () => {
-    setEditingProduct(null);
-    setIsFormOpen(true);
-  };
-
-  // const showSuccess = (message: string) => {
-  //   setSuccess(message);
-  //   setTimeout(() => setSuccess(null), 3000);
-  // };
-
-  const clearError = () => setError(null);
-  const clearSuccess = () => setSuccess(null);
+  // Determine if we're using API pagination
+  const useApiPagination = !!pagination;
 
   return (
     <div className="min-h-screen bg-gray-50/50 p-6">
@@ -324,8 +138,13 @@ export default function ProductsPage() {
               {useApiPagination && (
                 <span className="text-green-600 ml-2">• Connected to API</span>
               )}
-              {!useApiPagination && products.length === 0 && (
+              {!useApiPagination && products.length === 0 && !loading && (
                 <span className="text-orange-600 ml-2">• Using demo data</span>
+              )}
+              {activeSearchQuery && (
+                <span className="text-blue-600 ml-2">
+                  • Searching: &apos;{activeSearchQuery}&apos;
+                </span>
               )}
             </p>
           </div>
@@ -334,67 +153,18 @@ export default function ProductsPage() {
             <ProductSearch
               searchQuery={searchQuery}
               onSearchChange={handleSearchChange}
+              onSearchSubmit={handleCustomSearchSubmit}
+              loading={searchLoading}
               className="w-full sm:w-80"
             />
-            <ProductForm
-              isOpen={isFormOpen}
-              onOpenChange={setIsFormOpen}
-              onSubmit={handleFormSubmit}
-              editingProduct={editingProduct}
-              setEditingProduct={setEditingProduct}
-              loading={loading}
-            />
+
+            {/* Fixed: Use a separate button to trigger the form */}
+            <Button onClick={openCreateForm} className="gap-2 cursor-pointer">
+              <Plus className="h-4 w-4" />
+              Add Product
+            </Button>
           </div>
         </motion.div>
-
-        {/* Alerts */}
-        <AnimatePresence>
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              transition={{ duration: 0.3 }}
-              className="mb-6"
-            >
-              <Alert className="border-red-200 bg-red-50 shadow-sm">
-                <AlertCircle className="h-4 w-4 text-red-600" />
-                <AlertDescription className="text-red-800 flex items-center justify-between">
-                  <span>{error}. Now showing demo data.</span>
-                  <button
-                    onClick={clearError}
-                    className="text-red-800 hover:text-red-900 font-medium transition-colors"
-                  >
-                    Dismiss
-                  </button>
-                </AlertDescription>
-              </Alert>
-            </motion.div>
-          )}
-
-          {success && (
-            <motion.div
-              initial={{ opacity: 0, y: -10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              transition={{ duration: 0.3 }}
-              className="mb-6"
-            >
-              <Alert className="border-green-200 bg-green-50 shadow-sm">
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                <AlertDescription className="text-green-800 flex items-center justify-between">
-                  <span>{success}</span>
-                  <button
-                    onClick={clearSuccess}
-                    className="text-green-800 hover:text-green-900 font-medium transition-colors"
-                  >
-                    Dismiss
-                  </button>
-                </AlertDescription>
-              </Alert>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* Products List */}
         <motion.div
@@ -406,21 +176,30 @@ export default function ProductsPage() {
             products={products}
             totalProducts={totalProducts}
             loading={loading}
-            searchQuery={searchQuery}
+            searchQuery={activeSearchQuery}
             currentPage={currentPage}
             itemsPerPage={itemsPerPage}
             onPageChange={handlePageChange}
             onItemsPerPageChange={handleItemsPerPageChange}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onAddProduct={handleAddProduct}
+            onEdit={openEditForm}
+            onDelete={openDeleteDialog}
+            onAddProduct={openCreateForm}
             useApiPagination={useApiPagination}
-            apiPagination={apiPagination}
+            apiPagination={pagination}
           />
         </motion.div>
 
+        {/* Product Form Dialog - Fixed: Moved outside header, no trigger prop */}
+        <ProductForm
+          isOpen={isFormOpen}
+          onOpenChange={closeForm}
+          onSubmit={handleFormSubmit}
+          editingProduct={editingProduct}
+          loading={loading || crudLoading}
+        />
+
         {/* Delete Confirmation Dialog */}
-        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialog open={deleteDialogOpen} onOpenChange={closeDeleteDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Delete Product</AlertDialogTitle>
@@ -434,7 +213,7 @@ export default function ProductsPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel
-                onClick={cancelDelete}
+                onClick={closeDeleteDialog}
                 className="cursor-pointer"
               >
                 Cancel
@@ -442,9 +221,9 @@ export default function ProductsPage() {
               <AlertDialogAction
                 onClick={confirmDelete}
                 className="bg-red-600 hover:bg-red-700 focus:ring-red-600 cursor-pointer"
-                disabled={loading}
+                disabled={crudLoading}
               >
-                {loading ? "Deleting..." : "Delete"}
+                {crudLoading ? "Deleting..." : "Delete"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

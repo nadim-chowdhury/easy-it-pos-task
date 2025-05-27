@@ -2,14 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-  Search,
   Package,
   Plus,
   ChevronLeft,
   ChevronRight,
   Filter,
+  X,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,22 +22,15 @@ import {
 } from "@/components/ui/select";
 import Cart from "@/components/pos/Cart";
 import { toast } from "sonner";
-import {
-  api,
-  Product,
-  CreateSaleDto,
-  SaleItem,
-  CartItem as APICartItem,
-} from "@/lib/api";
+import { api, Product, CreateSaleDto, SaleItem } from "@/lib/api";
+
+// Import the hooks
+import { useProducts, useProductSearch } from "@/hooks/useProducts";
 
 // Import demo data
-import {
-  demoPosProducts,
-  categories,
-  searchProducts as searchDemoProducts,
-  getPaginatedProducts,
-} from "@/utils/demo-pos-products-list";
+import { demoPosProducts, categories } from "@/utils/demo-pos-products-list";
 import Image from "next/image";
+import ProductSearch from "@/components/products/ProductSearch";
 
 interface CartItem {
   id: string;
@@ -48,124 +40,79 @@ interface CartItem {
   quantity: number;
 }
 
-interface PaginationInfo {
-  currentPage: number;
-  totalPages: number;
-  totalItems: number;
-  hasNextPage: boolean;
-  hasPrevPage: boolean;
-}
-
 export default function POSpage() {
-  const [products, setProducts] = useState<any>([]);
-  const [displayProducts, setDisplayProducts] = useState<Product[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [error, setError] = useState("");
+  const [displayProducts, setDisplayProducts] = useState<any>([]);
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(12); // Fixed items per page
-  const [paginationInfo, setPaginationInfo] = useState<PaginationInfo>({
-    currentPage: 1,
-    totalPages: 1,
-    totalItems: 0,
-    hasNextPage: false,
-    hasPrevPage: false,
+  // Use the products hook with demo data fallback
+  const {
+    products: allProducts,
+    loading,
+    error,
+    pagination,
+    currentPage,
+    itemsPerPage,
+    searchQuery: activeSearchQuery,
+    loadProducts,
+    setCurrentPage,
+    setSearchQuery,
+    clearError,
+  } = useProducts({
+    initialItemsPerPage: 12,
+    enableApiPagination: true, // Use demo data for now
+    demoProducts: demoPosProducts,
   });
 
-  // Load products (using demo data for now)
-  const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      setError("");
+  // Use the search hook
+  const {
+    searchQuery,
+    searchLoading,
+    handleSearchChange,
+    handleSearchSubmit,
+    clearSearch,
+  } = useProductSearch({
+    onSearchSuccess: (_, query) => {
+      setSearchQuery(query);
+      loadProducts(1, itemsPerPage, query);
+    },
+    onSearchError: (error) => {
+      toast.error(error);
+    },
+    minSearchLength: 2,
+  });
 
-      // For demo purposes, we'll use the demo data
-      // In production, replace with: const data = await api.products.getAll();
-      await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate API delay
-      setProducts(demoPosProducts);
-    } catch (err: any) {
-      console.error("Fetch products error:", err);
-      setError(
-        err.message || "Failed to load products. Please refresh the page."
-      );
-      setProducts([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Filter and paginate products - wrapped in useCallback to prevent unnecessary re-renders
+  // Filter products by category and update display
   const updateDisplayProducts = useCallback(() => {
-    let filteredProducts = products;
-
-    // Apply search filter
-    if (searchQuery.trim().length >= 2) {
-      filteredProducts = searchDemoProducts(searchQuery);
-    }
+    let filteredProducts = allProducts;
 
     // Apply category filter
     if (selectedCategory !== "all") {
-      filteredProducts = filteredProducts.filter(
-        (product) => product.category === selectedCategory
+      filteredProducts = allProducts.filter(
+        (product: any) => product.category === selectedCategory
       );
     }
 
-    // Apply pagination
-    const paginatedResult = getPaginatedProducts(
-      filteredProducts,
-      currentPage,
-      itemsPerPage
-    );
+    setDisplayProducts(filteredProducts);
+  }, [allProducts, selectedCategory]);
 
-    setDisplayProducts(paginatedResult.products);
-    setPaginationInfo({
-      currentPage: paginatedResult.currentPage,
-      totalPages: paginatedResult.totalPages,
-      totalItems: paginatedResult.totalItems,
-      hasNextPage: paginatedResult.hasNextPage,
-      hasPrevPage: paginatedResult.hasPrevPage,
-    });
-  }, [products, searchQuery, selectedCategory, currentPage, itemsPerPage]);
+  // Update display products when products or category changes
+  useEffect(() => {
+    updateDisplayProducts();
+  }, [updateDisplayProducts]);
 
   useEffect(() => {
-    fetchProducts();
-  }, []);
-
-  useEffect(() => {
-    // Reset to first page when search or category changes
-    setCurrentPage(1);
-  }, [searchQuery, selectedCategory]);
-
-  useEffect(() => {
-    if (products.length > 0) {
-      setSearchLoading(searchQuery.trim().length >= 2);
-
-      // Simulate search delay
-      const searchTimeout = setTimeout(
-        () => {
-          updateDisplayProducts();
-          setSearchLoading(false);
-        },
-        searchQuery.trim().length >= 2 ? 300 : 0
-      );
-
-      return () => clearTimeout(searchTimeout);
+    if (!searchQuery) {
+      setSearchQuery("");
     }
-  }, [
-    products,
-    searchQuery,
-    selectedCategory,
-    currentPage,
-    updateDisplayProducts,
-  ]);
+  }, [searchQuery, setSearchQuery]);
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(e.target.value);
-  };
+  // Reset to first page when category changes
+  useEffect(() => {
+    if (selectedCategory !== "all") {
+      setCurrentPage(1);
+    }
+  }, [selectedCategory, setCurrentPage]);
 
   const handleCategoryChange = (category: string) => {
     setSelectedCategory(category);
@@ -178,6 +125,27 @@ export default function POSpage() {
     if (productsSection) {
       productsSection.scrollIntoView({ behavior: "smooth" });
     }
+  };
+
+  const handleSearchChangeWrapper = (query: string) => {
+    handleSearchChange(query);
+    // If search is cleared, reset category filter
+    if (!query.trim()) {
+      setSelectedCategory("all");
+    }
+  };
+
+  const handleSearchSubmitWrapper = (query: string) => {
+    handleSearchSubmit(query);
+    // Reset category when searching
+    if (query.trim()) {
+      setSelectedCategory("all");
+    }
+  };
+
+  const handleClearSearch = () => {
+    clearSearch();
+    setSelectedCategory("all");
   };
 
   const handleAddToCart = (product: Product) => {
@@ -223,7 +191,7 @@ export default function POSpage() {
     }
 
     // Find the product to check stock
-    const product = products.find((p) => p.id === id);
+    const product = allProducts.find((p: any) => p.id === id);
 
     if (product && newQuantity > product.stockQty) {
       toast.error("Cannot add more items than available in stock");
@@ -265,7 +233,7 @@ export default function POSpage() {
       }));
 
       // Calculate totals using the API utility
-      const apiCartItems: APICartItem[] = cart.map((item) => ({
+      const apiCartItems: any = cart.map((item) => ({
         productId: item.id,
         product: {
           id: item.id,
@@ -284,7 +252,7 @@ export default function POSpage() {
           0.08 // 8% tax rate - adjust as needed
         );
 
-      // Create sale data object but don't store in unused variable
+      // Create sale data object
       const saleDataForAPI: CreateSaleDto = {
         items: saleItems,
         paymentMethod: checkoutData.paymentMethod,
@@ -297,25 +265,16 @@ export default function POSpage() {
         amountReceived: checkoutData.amountReceived,
         changeAmount: checkoutData.changeAmount,
       };
-      console.log(" POSpage ~ saleDataForAPI:", saleDataForAPI);
+      console.log("POSpage ~ saleDataForAPI:", saleDataForAPI);
 
       // In demo mode, simulate API call
       // In production, you would use: await api.sales.create(saleDataForAPI);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // await new Promise((resolve) => setTimeout(resolve, 1000));
+      const response = await api.sales.create(saleDataForAPI);
+      console.log(" POSpage ~ response:", response)
 
-      // Simulate stock reduction
-      setProducts((prevProducts) =>
-        prevProducts.map((product) => {
-          const cartItem = cart.find((item) => item.id === product.id);
-          if (cartItem) {
-            return {
-              ...product,
-              stockQty: Math.max(0, product.stockQty - cartItem.quantity),
-            };
-          }
-          return product;
-        })
-      );
+      // Simulate stock reduction by reloading products
+      await loadProducts(currentPage, itemsPerPage, activeSearchQuery);
 
       // Clear cart
       clearCart();
@@ -348,8 +307,13 @@ export default function POSpage() {
     return stock.toString();
   };
 
-  const isSearching = searchQuery.trim().length >= 2;
-  const isFiltering = selectedCategory !== "all" || isSearching;
+  const isSearching = searchQuery.trim().length >= 1 && !searchLoading;
+  console.log(" POSpage ~ isSearching:", isSearching);
+  const isFiltering = selectedCategory !== "all";
+
+  // Calculate display stats
+  const totalDisplayItems = pagination?.total || displayProducts.length;
+  const currentDisplayCount = displayProducts.length;
 
   return (
     <div className="min-h-screen bg-gray-50/50 px-6 pt-6">
@@ -367,25 +331,29 @@ export default function POSpage() {
                 </div>
 
                 {/* Search and Filter Bar */}
-                <div className="flex gap-4">
-                  {/* Search Bar */}
-                  <div className="flex-1 relative items-center">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <Input
-                      placeholder="Search products by name, code, or description..."
-                      value={searchQuery}
-                      onChange={handleSearchChange}
-                      className="pl-10 h-9 text-base border-gray-200 focus:border-blue-500 transition-colors"
-                    />
-                    {searchLoading && (
-                      <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                        <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                      </div>
-                    )}
-                  </div>
+                <div className="flex items-center gap-2">
+                  {isSearching && (
+                    <div
+                      onClick={() => {
+                        setSearchQuery("");
+                        handleSearchChange(""); // Clear search query
+                      }}
+                      className="bg-red-600 text-white p-1 rounded-md cursor-pointer hover:bg-red-700 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </div>
+                  )}
+                  {/* Product Search Component */}
+                  <ProductSearch
+                    searchQuery={searchQuery}
+                    onSearchChange={handleSearchChangeWrapper}
+                    onSearchSubmit={handleSearchSubmitWrapper}
+                    className="flex-1 min-w-[300px]"
+                    loading={searchLoading || loading}
+                  />
 
                   {/* Category Filter */}
-                  <div className="">
+                  <div className="ml-2">
                     <Select
                       value={selectedCategory}
                       onValueChange={handleCategoryChange}
@@ -406,17 +374,6 @@ export default function POSpage() {
                   </div>
                 </div>
               </div>
-
-              {/* {totalItems > 0 && (
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
-                  <ShoppingCart className="w-4 h-4" />
-                  <span>{totalItems} items</span>
-                  <span className="text-gray-400">•</span>
-                  <span className="font-semibold text-gray-900">
-                    ${totalPrice.toFixed(2)}
-                  </span>
-                </div>
-              )} */}
             </div>
           </div>
         </div>
@@ -428,12 +385,12 @@ export default function POSpage() {
               {/* Results Info */}
               <div className="flex items-center justify-between text-sm text-gray-500 pr-4">
                 <div>
-                  {searchLoading ? (
-                    "Searching..."
+                  {loading || searchLoading ? (
+                    "Loading..."
                   ) : (
                     <>
-                      Showing {displayProducts.length} of{" "}
-                      {paginationInfo.totalItems} products
+                      Showing {currentDisplayCount} of {totalDisplayItems}{" "}
+                      products
                       {isFiltering && (
                         <span className="ml-1">
                           {isSearching && `matching "${searchQuery}"`}
@@ -451,10 +408,9 @@ export default function POSpage() {
                   )}
                 </div>
 
-                {paginationInfo.totalPages > 1 && (
+                {pagination && pagination.totalPages > 1 && (
                   <div className="text-sm text-gray-500">
-                    Page {paginationInfo.currentPage} of{" "}
-                    {paginationInfo.totalPages}
+                    Page {pagination.page} of {pagination.totalPages}
                   </div>
                 )}
               </div>
@@ -467,7 +423,10 @@ export default function POSpage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={fetchProducts}
+                  onClick={() => {
+                    clearError();
+                    loadProducts(currentPage, itemsPerPage, activeSearchQuery);
+                  }}
                   className="mt-2 cursor-pointer"
                 >
                   Retry
@@ -478,7 +437,7 @@ export default function POSpage() {
             {/* Products Grid */}
             <div id="products-grid">
               <ScrollArea className="h-[calc(100vh-192px)] py-4">
-                {loading ? (
+                {loading || searchLoading ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {[...Array(12)].map((_, i) => (
                       <Card key={i} className="animate-pulse">
@@ -495,7 +454,7 @@ export default function POSpage() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pr-4">
-                    {displayProducts.map((product) => (
+                    {displayProducts.map((product: any) => (
                       <Card
                         key={product.id}
                         className="group hover:shadow-md transition-all duration-200 border-gray-200 cursor-pointer"
@@ -519,7 +478,7 @@ export default function POSpage() {
                               </p>
                               {product.category && (
                                 <p className="text-xs text-gray-400 mt-1">
-                                  {product.category}
+                                  Category: {product.category}
                                 </p>
                               )}
                             </div>
@@ -552,7 +511,7 @@ export default function POSpage() {
                 )}
 
                 {/* No Products Found */}
-                {!loading && displayProducts.length === 0 && (
+                {!loading && !searchLoading && displayProducts.length === 0 && (
                   <div className="text-center py-12">
                     <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <p className="text-gray-500 mb-2">
@@ -568,11 +527,8 @@ export default function POSpage() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => {
-                            setSearchQuery("");
-                            setSelectedCategory("all");
-                          }}
-                          className="cursor-pointer"
+                          onClick={handleClearSearch}
+                          className="cursor-pointer mt-2"
                         >
                           Clear Filters
                         </Button>
@@ -584,78 +540,75 @@ export default function POSpage() {
             </div>
 
             {/* Pagination */}
-            {!loading && paginationInfo.totalPages > 1 && (
-              <div className="mt-2 flex items-center justify-between pr-4">
-                <div className="text-sm text-gray-600">
-                  Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
-                  {Math.min(
-                    currentPage * itemsPerPage,
-                    paginationInfo.totalItems
-                  )}{" "}
-                  of {paginationInfo.totalItems} products
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={!paginationInfo.hasPrevPage}
-                    className="flex items-center cursor-pointer"
-                  >
-                    <ChevronLeft className="w-4 h-4 mr-1" />
-                    Previous
-                  </Button>
-
-                  {/* Page Numbers */}
-                  <div className="flex items-center space-x-1">
-                    {Array.from(
-                      { length: Math.min(5, paginationInfo.totalPages) },
-                      (_, i) => {
-                        let pageNum;
-                        if (paginationInfo.totalPages <= 5) {
-                          pageNum = i + 1;
-                        } else if (currentPage <= 3) {
-                          pageNum = i + 1;
-                        } else if (
-                          currentPage >=
-                          paginationInfo.totalPages - 2
-                        ) {
-                          pageNum = paginationInfo.totalPages - 4 + i;
-                        } else {
-                          pageNum = currentPage - 2 + i;
-                        }
-
-                        return (
-                          <Button
-                            key={pageNum}
-                            variant={
-                              currentPage === pageNum ? "default" : "outline"
-                            }
-                            size="sm"
-                            className="w-8 h-8 p-0 cursor-pointer"
-                            onClick={() => handlePageChange(pageNum)}
-                          >
-                            {pageNum}
-                          </Button>
-                        );
-                      }
-                    )}
+            {!loading &&
+              !searchLoading &&
+              pagination &&
+              pagination.totalPages > 1 && (
+                <div className="mt-2 flex items-center justify-between pr-4">
+                  <div className="text-sm text-gray-600">
+                    Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
+                    {Math.min(currentPage * itemsPerPage, pagination.total)} of{" "}
+                    {pagination.total} products
                   </div>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={!paginationInfo.hasNextPage}
-                    className="flex items-center cursor-pointer"
-                  >
-                    Next
-                    <ChevronRight className="w-4 h-4 ml-1" />
-                  </Button>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={!pagination.hasPrevPage}
+                      className="flex items-center cursor-pointer"
+                    >
+                      <ChevronLeft className="w-4 h-4 mr-1" />
+                      Previous
+                    </Button>
+
+                    {/* Page Numbers */}
+                    <div className="flex items-center space-x-1">
+                      {Array.from(
+                        { length: Math.min(5, pagination.totalPages) },
+                        (_, i) => {
+                          let pageNum;
+                          if (pagination.totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= pagination.totalPages - 2) {
+                            pageNum = pagination.totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={
+                                currentPage === pageNum ? "default" : "outline"
+                              }
+                              size="sm"
+                              className="w-8 h-8 p-0 cursor-pointer"
+                              onClick={() => handlePageChange(pageNum)}
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        }
+                      )}
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={!pagination.hasNextPage}
+                      className="flex items-center cursor-pointer"
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4 ml-1" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
           </div>
 
           {/* Cart Section */}

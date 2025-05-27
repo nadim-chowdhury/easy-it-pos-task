@@ -3,8 +3,10 @@ import {
   NotFoundException,
   BadRequestException,
   Logger,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Decimal } from '@prisma/client/runtime/library';
+import { JwtService } from '@nestjs/jwt';
 
 import { PrismaService } from '../database/prisma.service';
 import { ProductsService } from '../products/products.service';
@@ -19,17 +21,25 @@ export class SalesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly productsService: ProductsService,
+    private readonly jwtService: JwtService, // Add JWT service
   ) {}
 
   async create(
     createSaleDto: CreateSaleDto,
-    userId: string,
+    accessToken: string, // Change from userId to accessToken
   ): Promise<SaleResponseDto> {
     const {
       items,
       paymentMethod,
+      customerName,
+      customerPhone,
       discount = 0,
       tax = 0,
+      taxAmount,
+      subtotal,
+      totalAmount: providedTotal,
+      amountReceived,
+      changeAmount,
       notes,
     } = createSaleDto;
 
@@ -37,16 +47,21 @@ export class SalesService {
       throw new BadRequestException('Sale must contain at least one item');
     }
 
+    // Extract user from access token
+    const userId = await this.getUserIdFromToken(accessToken);
+    console.log(' userId:', userId);
+
     try {
       return await this.prisma.$transaction(async (prisma) => {
         // Validate products and calculate totals
-        let totalAmount = 0;
+        let calculatedSubtotal = 0;
         const saleItems: Array<{
           productId: string;
           quantity: number;
-          price: number; // Changed: Use 'price' field name from SaleItem schema
+          price: number;
         }> = [];
 
+        // Validate each item and calculate subtotal
         for (const item of items) {
           const product = await this.productsService.findOne(item.productId);
 
@@ -56,46 +71,103 @@ export class SalesService {
             );
           }
 
-          const itemTotal = Number(product.price) * item.quantity;
-          totalAmount += itemTotal;
+          // Use database price (authoritative source), not the price from request
+          const unitPrice = Number(product.price);
+          const itemTotal = unitPrice * item.quantity;
+          calculatedSubtotal += itemTotal;
+
+          // Optional: Verify the price sent from frontend matches database
+          if (item.price && Math.abs(item.price - unitPrice) > 0.01) {
+            this.logger.warn(
+              `Price mismatch for product ${product.name}. Database: ${unitPrice}, Request: ${item.price}`,
+            );
+          }
 
           saleItems.push({
             productId: item.productId,
             quantity: item.quantity,
-            price: Number(product.price), // Changed: Use 'price' field
+            price: unitPrice, // Always use database price
           });
         }
 
-        // Calculate final amount
-        const discountAmount = (totalAmount * discount) / 100;
-        const taxAmount = ((totalAmount - discountAmount) * tax) / 100;
-        const finalAmount = totalAmount - discountAmount + taxAmount;
+        // Optional: Verify subtotal if provided
+        if (subtotal && Math.abs(subtotal - calculatedSubtotal) > 0.01) {
+          this.logger.warn(
+            `Subtotal mismatch. Calculated: ${calculatedSubtotal}, Provided: ${subtotal}`,
+          );
+        }
+
+        // Calculate amounts using database values
+        const discountAmount =
+          discount > 0 ? (calculatedSubtotal * discount) / 100 : 0;
+        const amountAfterDiscount = calculatedSubtotal - discountAmount;
+
+        // Use taxAmount if provided, otherwise calculate from tax percentage
+        let finalTaxAmount = 0;
+        if (taxAmount !== undefined && taxAmount > 0) {
+          finalTaxAmount = taxAmount;
+        } else if (tax > 0) {
+          finalTaxAmount = (amountAfterDiscount * tax) / 100;
+        }
+
+        const finalAmount = amountAfterDiscount + finalTaxAmount;
+
+        // Optional: Verify total amount if provided
+        if (providedTotal && Math.abs(providedTotal - finalAmount) > 0.01) {
+          this.logger.warn(
+            `Total amount mismatch. Calculated: ${finalAmount}, Provided: ${providedTotal}`,
+          );
+        }
+
+        // Validate payment amounts for cash transactions
+        if (paymentMethod === 'CASH') {
+          if (amountReceived !== undefined && amountReceived < finalAmount) {
+            throw new BadRequestException(
+              `Insufficient payment. Required: ${finalAmount}, Received: ${amountReceived}`,
+            );
+          }
+
+          if (changeAmount !== undefined && amountReceived !== undefined) {
+            const calculatedChange = amountReceived - finalAmount;
+            if (Math.abs(calculatedChange - changeAmount) > 0.01) {
+              this.logger.warn(
+                `Change amount mismatch. Calculated: ${calculatedChange}, Provided: ${changeAmount}`,
+              );
+            }
+          }
+        }
 
         // Generate sale number
         const saleNumber = await this.generateSaleNumber();
 
-        // Create sale
-        const sale = await prisma.sale.create({
-          data: {
-            saleNumber,
-            total: totalAmount, // Changed: Use 'total' field from schema
-            tax: taxAmount,
-            discount: discountAmount,
-            finalAmount: finalAmount,
-            paymentMethod,
-            userId,
-            items: {
-              // Changed: Use 'items' relation name from schema
-              create: saleItems.map((item) => ({
-                productId: item.productId,
-                quantity: item.quantity,
-                price: Number(item.price), // Changed: Use 'price' field from SaleItem schema
-              })),
-            },
+        // Create sale with customer information and user ID
+        const saleData: any = {
+          saleNumber,
+          total: calculatedSubtotal,
+          amountReceived: amountReceived,
+          changeAmount: changeAmount,
+          tax: finalTaxAmount,
+          discount: discountAmount,
+          finalAmount: finalAmount,
+          paymentMethod,
+          userId, // Now properly assign the user
+          notes: notes,
+          customerName: customerName, // Store directly in sale model
+          customerPhone: customerPhone, // Store directly in sale model
+          items: {
+            create: saleItems.map((item) => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              price: Number(item.price),
+            })),
           },
+        };
+        console.log(saleData);
+
+        const sale = await prisma.sale.create({
+          data: saleData,
           include: {
             items: {
-              // Changed: Use 'items' relation name
               include: {
                 product: true,
               },
@@ -105,6 +177,8 @@ export class SalesService {
                 id: true,
                 name: true,
                 email: true,
+                username: true,
+                role: true,
               },
             },
           },
@@ -120,12 +194,16 @@ export class SalesService {
         }
 
         this.logger.log(
-          `Sale created: ${sale.saleNumber} - Total: $${finalAmount}`,
+          `Sale created: ${sale.saleNumber} - Total: $${finalAmount} - Customer: ${customerName || 'N/A'} - Cashier: ${sale.user?.name}`,
         );
         return this.mapToResponseDto(sale);
       });
     } catch (error) {
-      if (error instanceof BadRequestException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException ||
+        error instanceof UnauthorizedException
+      ) {
         throw error;
       }
       this.logger.error('Error creating sale', error);
@@ -133,7 +211,98 @@ export class SalesService {
     }
   }
 
-  async findAll(paginationDto: PaginationDto) {
+  // Enhanced getUserIdFromToken method with better error handling and logging
+  private async getUserIdFromToken(accessToken: string): Promise<string> {
+    console.log(' getUserIdFromToken ~ accessToken:', accessToken);
+    try {
+      this.logger.debug('Starting token validation process');
+
+      // Log the raw token (first 20 chars for security)
+      this.logger.debug(
+        `Raw token received: ${accessToken.substring(0, 20)}...`,
+      );
+
+      // Remove 'Bearer ' prefix if present
+      const token = accessToken.replace(/^Bearer\s+/i, '').trim();
+
+      this.logger.debug(`Cleaned token: ${token.substring(0, 20)}...`);
+
+      if (!token) {
+        throw new UnauthorizedException('No token provided');
+      }
+
+      // Verify and decode the JWT token
+      let decoded;
+      try {
+        decoded = this.jwtService.verify(token);
+        this.logger.debug('Token successfully verified');
+        this.logger.debug(`Token payload: ${JSON.stringify(decoded, null, 2)}`);
+      } catch (jwtError) {
+        this.logger.error('JWT verification failed:', jwtError.message);
+
+        // Provide more specific error messages
+        if (jwtError.name === 'TokenExpiredError') {
+          throw new UnauthorizedException('Token has expired');
+        } else if (jwtError.name === 'JsonWebTokenError') {
+          throw new UnauthorizedException('Invalid token format');
+        } else if (jwtError.name === 'NotBeforeError') {
+          throw new UnauthorizedException('Token not active yet');
+        } else {
+          throw new UnauthorizedException(
+            `Token validation failed: ${jwtError.message}`,
+          );
+        }
+      }
+
+      // Extract user ID from token payload - check standard claims first
+      const userId = decoded.sub || decoded.userId || decoded.id;
+
+      this.logger.debug(`Extracted userId: ${userId}`);
+
+      if (!userId) {
+        this.logger.error('Token payload missing user ID:', decoded);
+        throw new UnauthorizedException(
+          'Invalid token: user ID not found in payload',
+        );
+      }
+
+      // Verify user exists and is active
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          isActive: true,
+          email: true,
+          username: true,
+          role: true,
+        },
+      });
+
+      if (!user) {
+        this.logger.error(`User not found for ID: ${userId}`);
+        throw new UnauthorizedException('User not found');
+      }
+
+      if (!user.isActive) {
+        this.logger.error(`User account inactive for: ${user.email}`);
+        throw new UnauthorizedException('User account is inactive');
+      }
+
+      this.logger.debug(
+        `User validated successfully: ${user.email} (${user.role})`,
+      );
+      return userId;
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
+      this.logger.error('Unexpected error in token validation:', error);
+      throw new UnauthorizedException('Invalid access token');
+    }
+  }
+
+  async findAll(paginationDto: PaginationDto, accessToken?: string) {
     const {
       page = 1,
       limit = 10,
@@ -143,14 +312,31 @@ export class SalesService {
     const skip = (page - 1) * limit;
 
     try {
+      // Optional: Filter by user if needed (for cashier-specific sales)
+      let whereClause = {};
+      if (accessToken) {
+        const userId = await this.getUserIdFromToken(accessToken);
+        console.log(' userId:', userId);
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { role: true },
+        });
+
+        // If user is a cashier, only show their sales
+        if (user?.role === 'CASHIER') {
+          whereClause = { userId };
+        }
+        // Managers/Admins can see all sales
+      }
+
       const [sales, total] = await Promise.all([
         this.prisma.sale.findMany({
+          where: whereClause,
           skip,
           take: limit,
           orderBy: { [sortBy]: sortOrder },
           include: {
             items: {
-              // Changed: Use 'items' relation name
               include: {
                 product: {
                   select: {
@@ -167,11 +353,13 @@ export class SalesService {
                 id: true,
                 name: true,
                 email: true,
+                username: true,
+                role: true,
               },
             },
           },
         }),
-        this.prisma.sale.count(),
+        this.prisma.sale.count({ where: whereClause }),
       ]);
 
       return {
@@ -195,7 +383,6 @@ export class SalesService {
         where: { id },
         include: {
           items: {
-            // Changed: Use 'items' relation name
             include: {
               product: true,
             },
@@ -205,6 +392,8 @@ export class SalesService {
               id: true,
               name: true,
               email: true,
+              username: true,
+              role: true,
             },
           },
         },
@@ -224,7 +413,7 @@ export class SalesService {
     }
   }
 
-  async getTodaySales() {
+  async getTodaySales(accessToken?: string) {
     try {
       const today = new Date();
       const startOfDay = new Date(
@@ -234,36 +423,38 @@ export class SalesService {
       );
       const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
+      // Optional: Filter by user role
+      const whereClause: any = {
+        createdAt: {
+          gte: startOfDay,
+          lt: endOfDay,
+        },
+      };
+
+      if (accessToken) {
+        const userId = await this.getUserIdFromToken(accessToken);
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { role: true },
+        });
+
+        if (user?.role === 'CASHIER') {
+          whereClause.userId = userId;
+        }
+      }
+
       const [salesCount, totalRevenue, sales] = await Promise.all([
-        this.prisma.sale.count({
-          where: {
-            createdAt: {
-              gte: startOfDay,
-              lt: endOfDay,
-            },
-          },
-        }),
+        this.prisma.sale.count({ where: whereClause }),
         this.prisma.sale.aggregate({
-          where: {
-            createdAt: {
-              gte: startOfDay,
-              lt: endOfDay,
-            },
-          },
+          where: whereClause,
           _sum: {
             finalAmount: true,
           },
         }),
         this.prisma.sale.findMany({
-          where: {
-            createdAt: {
-              gte: startOfDay,
-              lt: endOfDay,
-            },
-          },
+          where: whereClause,
           include: {
             items: {
-              // Changed: Use 'items' relation name
               include: {
                 product: {
                   select: {
@@ -279,6 +470,8 @@ export class SalesService {
               select: {
                 id: true,
                 name: true,
+                username: true,
+                role: true,
               },
             },
           },
@@ -290,10 +483,10 @@ export class SalesService {
       return {
         summary: {
           salesCount,
-          totalRevenue: Number(totalRevenue._sum.finalAmount ?? 0), // Fixed: null safety
+          totalRevenue: Number(totalRevenue._sum.finalAmount ?? 0),
           averageOrderValue:
             salesCount > 0
-              ? Number(totalRevenue._sum.finalAmount ?? 0) / salesCount // Fixed: null safety
+              ? Number(totalRevenue._sum.finalAmount ?? 0) / salesCount
               : 0,
         },
         recentSales: sales.map((sale) => this.mapToResponseDto(sale)),
@@ -304,7 +497,10 @@ export class SalesService {
     }
   }
 
-  async getAnalytics(period: 'day' | 'week' | 'month' = 'day') {
+  async getAnalytics(
+    period: 'day' | 'week' | 'month' = 'day',
+    accessToken?: string,
+  ) {
     try {
       const now = new Date();
       let startDate: Date;
@@ -324,11 +520,26 @@ export class SalesService {
           );
       }
 
+      // Optional: Filter by user role
+      const whereClause: any = {
+        createdAt: { gte: startDate },
+      };
+
+      if (accessToken) {
+        const userId = await this.getUserIdFromToken(accessToken);
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: { role: true },
+        });
+
+        if (user?.role === 'CASHIER') {
+          whereClause.userId = userId;
+        }
+      }
+
       const [salesData, topProducts, paymentMethods] = await Promise.all([
         this.prisma.sale.aggregate({
-          where: {
-            createdAt: { gte: startDate },
-          },
+          where: whereClause,
           _count: true,
           _sum: {
             finalAmount: true,
@@ -342,13 +553,10 @@ export class SalesService {
         this.prisma.saleItem.groupBy({
           by: ['productId'],
           where: {
-            sale: {
-              createdAt: { gte: startDate },
-            },
+            sale: whereClause,
           },
           _sum: {
             quantity: true,
-            // Removed total since SaleItem doesn't have this field
           },
           orderBy: {
             _sum: {
@@ -359,9 +567,7 @@ export class SalesService {
         }),
         this.prisma.sale.groupBy({
           by: ['paymentMethod'],
-          where: {
-            createdAt: { gte: startDate },
-          },
+          where: whereClause,
           _count: true,
           _sum: {
             finalAmount: true,
@@ -380,7 +586,7 @@ export class SalesService {
             product,
             quantitySold: item._sum.quantity,
             totalRevenue:
-              Number(item._sum.quantity) * Number(product?.price || 0), // Calculate total since SaleItem doesn't have total field
+              Number(item._sum.quantity) * Number(product?.price || 0),
           };
         }),
       );
@@ -388,15 +594,15 @@ export class SalesService {
       return {
         period,
         totalSales: salesData._count,
-        totalRevenue: Number(salesData._sum.finalAmount ?? 0), // Fixed: null safety
-        averageOrderValue: Number(salesData._avg.finalAmount ?? 0), // Fixed: null safety
-        totalTax: Number(salesData._sum.tax ?? 0), // Fixed: null safety
-        totalDiscount: Number(salesData._sum.discount ?? 0), // Fixed: null safety
+        totalRevenue: Number(salesData._sum.finalAmount ?? 0),
+        averageOrderValue: Number(salesData._avg.finalAmount ?? 0),
+        totalTax: Number(salesData._sum.tax ?? 0),
+        totalDiscount: Number(salesData._sum.discount ?? 0),
         topProducts: topProductsWithDetails,
         paymentMethodBreakdown: paymentMethods.map((pm) => ({
           method: pm.paymentMethod,
           count: pm._count,
-          revenue: Number(pm._sum.finalAmount ?? 0), // Fixed: null safety
+          revenue: Number(pm._sum.finalAmount ?? 0),
         })),
       };
     } catch (error) {
@@ -419,7 +625,11 @@ export class SalesService {
           website: 'www.possystem.com',
           receiptNumber: sale.saleNumber,
           dateTime: sale.createdAt,
-          cashier: sale.user, // Changed: use name instead of username
+          cashier: sale.user,
+          customer: {
+            name: sale.customerName,
+            phone: sale.customerPhone,
+          },
         },
       };
     } catch (error) {
@@ -457,23 +667,26 @@ export class SalesService {
     return {
       id: sale.id,
       saleNumber: sale.saleNumber,
-      totalAmount: Number(sale.total), // Changed: Use 'total' field from schema
+      totalAmount: Number(sale.total),
       tax: Number(sale.tax),
       discount: Number(sale.discount),
       finalAmount: Number(sale.finalAmount),
       paymentMethod: sale.paymentMethod,
-      status: 'COMPLETED', // Since schema doesn't have status, set a default
+      status: 'COMPLETED',
       notes: sale.notes,
+      customerName: sale.customerName,
+      customerPhone: sale.customerPhone,
+      amountReceived: sale.amountReceived,
+      changeAmount: sale.changeAmount,
       createdAt: sale.createdAt,
       updatedAt: sale.updatedAt,
       user: sale.user,
       items:
         sale.items?.map((item) => ({
-          // Changed: Use 'items' relation name
           id: item.id,
           quantity: item.quantity,
-          unitPrice: Number(item.price), // Changed: Use 'price' field from SaleItem
-          total: Number(item.price) * item.quantity, // Calculate total since SaleItem doesn't have total field
+          unitPrice: Number(item.price),
+          total: Number(item.price) * item.quantity,
           product: {
             id: item.product.id,
             name: item.product.name,

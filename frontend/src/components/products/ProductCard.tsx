@@ -42,8 +42,8 @@ export default function ProductCard({
   const stockStatus = getStockStatus(product);
 
   return (
-    <Card className="group hover:shadow-md transition-shadow">
-      <CardHeader className="pb-3">
+    <Card className="group hover:shadow-md transition-shadow gap-2">
+      <CardHeader className="!pb-4 border-b">
         <div className="flex items-start justify-between">
           <div className="flex items-start space-x-4 flex-1">
             <Image
@@ -74,7 +74,7 @@ export default function ProductCard({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-1">
         <div className="flex items-center justify-between text-sm">
           <span className="text-muted-foreground">Price:</span>
           <span className="font-semibold text-lg">
@@ -162,7 +162,7 @@ export default function ProductCard({
 
         {/* Show timestamps if available */}
         {product.createdAt && (
-          <div className="text-xs text-muted-foreground pt-2 border-t">
+          <div className="text-xs text-muted-foreground pt-2">
             <div className="flex justify-between">
               <span>Created:</span>
               <span>{new Date(product.createdAt).toLocaleDateString()}</span>

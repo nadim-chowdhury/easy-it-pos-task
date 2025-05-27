@@ -9,26 +9,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Product } from "@/lib/api";
 import ProductCard from "./ProductCard";
 
-// API Pagination type to match your backend
+// API Pagination type to match your backend - updated to match the hook's interface
 interface PaginationInfo {
   page: number;
   limit: number;
   total: number;
   totalPages: number;
-  hasNext: boolean;
-  hasPrev: boolean;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+  hasNext?: boolean;
+  hasPrev?: boolean;
 }
 
 interface ProductListProps {
-  products: Product[];
+  products: any;
   totalProducts: number;
   loading: boolean;
   searchQuery: string;
-  onEdit: (product: Product) => void;
-  onDelete: (product: Product) => void;
+  onEdit: (product: any) => void;
+  onDelete: (product: any) => void;
   onAddProduct: () => void;
   // Pagination props
   currentPage?: number;
@@ -64,8 +65,8 @@ export default function ProductList({
           currentPage: apiPagination.page,
           totalPages: apiPagination.totalPages,
           totalItems: apiPagination.total,
-          hasNext: apiPagination.hasNext,
-          hasPrev: apiPagination.hasPrev,
+          hasNext: apiPagination.hasNext ?? apiPagination.hasNextPage ?? false,
+          hasPrev: apiPagination.hasPrev ?? apiPagination.hasPrevPage ?? false,
           itemsPerPage: apiPagination.limit,
         }
       : {
@@ -80,10 +81,6 @@ export default function ProductList({
   // Calculate display range
   const startIndex =
     (paginationData.currentPage - 1) * paginationData.itemsPerPage;
-  // const endIndex = Math.min(
-  //   startIndex + paginationData.itemsPerPage,
-  //   paginationData.totalItems
-  // );
   const displayedCount = products.length;
 
   // Generate page numbers for pagination
@@ -201,7 +198,10 @@ export default function ProductList({
             : "Get started by adding your first product to the inventory."}
         </p>
         {!searchQuery && (
-          <Button onClick={onAddProduct} className="gap-2">
+          <Button
+            onClick={onAddProduct}
+            className="gap-2 w-1/4 mx-auto cursor-pointer"
+          >
             <Plus className="h-4 w-4" />
             Add Your First Product
           </Button>
@@ -237,7 +237,7 @@ export default function ProductList({
 
       {/* Products grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {products.map((product) => (
+        {products.map((product: any) => (
           <ProductCard
             key={product.id}
             product={product}
@@ -248,92 +248,88 @@ export default function ProductList({
       </div>
 
       {/* Pagination controls */}
-      {paginationData.totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4">
-          {/* Page info (mobile) */}
-          <div className="sm:hidden text-sm text-muted-foreground">
-            Page {paginationData.currentPage} of {paginationData.totalPages}
-          </div>
-
-          {/* Pagination buttons */}
-          <div className="flex items-center gap-2">
-            {/* Previous button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onPageChange?.(paginationData.currentPage - 1)}
-              disabled={!paginationData.hasPrev}
-              className="gap-1 cursor-pointer"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              <span className="hidden sm:inline">Previous</span>
-            </Button>
-
-            {/* Page numbers */}
-            <div className="flex gap-1">
-              {getPageNumbers().map((page, index) => (
-                <div key={index}>
-                  {page === "..." ? (
-                    <span className="px-2 py-1 text-sm text-muted-foreground">
-                      ...
-                    </span>
-                  ) : (
-                    <Button
-                      variant={
-                        paginationData.currentPage === page
-                          ? "default"
-                          : "outline"
-                      }
-                      size="sm"
-                      onClick={() => onPageChange?.(page as number)}
-                      className="w-8 h-8 p-0 cursor-pointer"
-                    >
-                      {page}
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {/* Next button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onPageChange?.(paginationData.currentPage + 1)}
-              disabled={!paginationData.hasNext}
-              className="gap-1 cursor-pointer"
-            >
-              <span className="hidden sm:inline">Next</span>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-
-          {/* Items per page selector */}
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground hidden sm:inline">
-              Show:
-            </span>
-            <Select
-              value={paginationData.itemsPerPage.toString()}
-              onValueChange={(value) => onItemsPerPageChange?.(parseInt(value))}
-            >
-              <SelectTrigger className="w-20 h-8">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ITEMS_PER_PAGE_OPTIONS.map((option) => (
-                  <SelectItem key={option} value={option.toString()}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <span className="text-muted-foreground hidden sm:inline">
-              per page
-            </span>
-          </div>
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4">
+        {/* Page info (mobile) */}
+        <div className="sm:hidden text-sm text-muted-foreground">
+          Page {paginationData.currentPage} of {paginationData.totalPages}
         </div>
-      )}
+
+        {/* Pagination buttons */}
+        <div className="flex items-center gap-2">
+          {/* Previous button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onPageChange?.(paginationData.currentPage - 1)}
+            disabled={!paginationData.hasPrev}
+            className="gap-1 cursor-pointer"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            <span className="hidden sm:inline">Previous</span>
+          </Button>
+
+          {/* Page numbers */}
+          <div className="flex gap-1">
+            {getPageNumbers().map((page, index) => (
+              <div key={index}>
+                {page === "..." ? (
+                  <span className="px-2 py-1 text-sm text-muted-foreground">
+                    ...
+                  </span>
+                ) : (
+                  <Button
+                    variant={
+                      paginationData.currentPage === page
+                        ? "default"
+                        : "outline"
+                    }
+                    size="sm"
+                    onClick={() => onPageChange?.(page as number)}
+                    className="w-8 h-8 p-0 cursor-pointer"
+                  >
+                    {page}
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Next button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onPageChange?.(paginationData.currentPage + 1)}
+            disabled={!paginationData.hasNext}
+            className="gap-1 cursor-pointer"
+          >
+            <span className="hidden sm:inline">Next</span>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Items per page selector */}
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-muted-foreground hidden sm:inline">Show:</span>
+          <Select
+            value={paginationData.itemsPerPage.toString()}
+            onValueChange={(value) => onItemsPerPageChange?.(parseInt(value))}
+          >
+            <SelectTrigger className="w-20 h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ITEMS_PER_PAGE_OPTIONS.map((option) => (
+                <SelectItem key={option} value={option.toString()}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className="text-muted-foreground hidden sm:inline">
+            per page
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

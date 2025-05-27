@@ -23,7 +23,7 @@ export class AuthService {
   ) {}
 
   async register(registerDto: RegisterDto): Promise<AuthResponseDto> {
-    const { email, name, password, username } = registerDto; // Add username
+    const { email, name, password, username } = registerDto;
 
     try {
       // Check if user already exists (email or username)
@@ -50,30 +50,32 @@ export class AuthService {
       const user = await this.prisma.user.create({
         data: {
           email,
-          username, // Add username
+          username,
           name,
           password: hashedPassword,
-          role: 'CASHIER', // Default role
-          isActive: true, // Default active status
+          role: 'CASHIER',
+          isActive: true,
         },
         select: {
           id: true,
           email: true,
-          username: true, // Include username
+          username: true,
           name: true,
-          role: true, // Include role
-          isActive: true, // Include isActive
+          role: true,
+          isActive: true,
           createdAt: true,
         },
       });
 
-      // Generate JWT token
+      // Generate JWT token with consistent payload structure
       const payload = {
-        userId: user.id,
+        sub: user.id, // Standard JWT subject claim
+        userId: user.id, // Custom claim for backward compatibility
         email: user.email,
         username: user.username,
         name: user.name,
         role: user.role,
+        iat: Math.floor(Date.now() / 1000), // Issued at time
       };
       const token = this.jwtService.sign(payload);
 
@@ -85,12 +87,11 @@ export class AuthService {
         message: 'User registered successfully',
       };
     } catch (error) {
-      console.log(' register ~ error:', error);
+      console.log('register ~ error:', error);
       if (error instanceof ConflictException) {
         throw error;
       }
 
-      // Type-safe error handling
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       const errorStack = error instanceof Error ? error.stack : undefined;
@@ -138,13 +139,15 @@ export class AuthService {
         throw new UnauthorizedException('Invalid credentials');
       }
 
-      // Generate JWT token
+      // Generate JWT token with consistent payload structure
       const payload = {
-        userId: user.id,
+        sub: user.id, // Standard JWT subject claim
+        userId: user.id, // Custom claim for backward compatibility
         email: user.email,
         username: user.username,
         name: user.name,
         role: user.role,
+        iat: Math.floor(Date.now() / 1000), // Issued at time
       };
       const token = this.jwtService.sign(payload);
 
@@ -168,7 +171,6 @@ export class AuthService {
         throw error;
       }
 
-      // Type-safe error handling
       const errorMessage =
         error instanceof Error ? error.message : 'Unknown error';
       const errorStack = error instanceof Error ? error.stack : undefined;
@@ -183,8 +185,20 @@ export class AuthService {
   }
 
   async validateUser(payload: any) {
+    this.logger.debug(
+      `Validating user with payload: ${JSON.stringify(payload)}`,
+    );
+
+    // Use sub (standard) or userId (custom) claim
+    const userId = payload.sub || payload.userId;
+
+    if (!userId) {
+      this.logger.error('No user ID found in token payload');
+      throw new UnauthorizedException('Invalid token payload');
+    }
+
     const user = await this.prisma.user.findUnique({
-      where: { id: payload.userId },
+      where: { id: userId },
       select: {
         id: true,
         email: true,
@@ -197,20 +211,16 @@ export class AuthService {
     });
 
     if (!user) {
+      this.logger.error(`User not found for ID: ${userId}`);
       throw new UnauthorizedException('User not found');
     }
 
     if (!user.isActive) {
+      this.logger.error(`User account inactive: ${user.email}`);
       throw new UnauthorizedException('Account is inactive');
     }
 
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      isActive: user.isActive,
-      createdAt: user.createdAt,
-    };
+    this.logger.debug(`User validated successfully: ${user.email}`);
+    return user;
   }
 }

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { salesHistoryApi } from "@/utils/sales-history-demo-data";
 import SaleDetailsModal from "@/components/sales-history/SaleDetailsModal";
+import api from "@/lib/api";
 
 const pageVariants = {
   initial: { opacity: 0, y: 20 },
@@ -52,8 +53,12 @@ export default function SalesHistoryPage() {
   const fetchSales = async () => {
     try {
       setError(null);
-      const salesData = await salesHistoryApi.sales.getAll();
-      setSales(salesData);
+      const salesDemoData = await salesHistoryApi.sales.getAll();
+
+      const response = await api.sales.getAll();
+      console.log(" POSpage ~ response:", response);
+
+      setSales(response.data.data || salesDemoData);
     } catch (err) {
       setError("Failed to load sales data");
       console.error("Error fetching sales:", err);

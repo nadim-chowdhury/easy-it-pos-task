@@ -116,9 +116,9 @@ export default function Checkout({
     try {
       await onComplete({
         paymentMethod,
-        customerName: customerName.trim() || undefined,
-        customerPhone: customerPhone.trim() || undefined,
-        notes: notes.trim() || undefined,
+        customerName: customerName.trim() || "",
+        customerPhone: customerPhone.trim() || "",
+        notes: notes.trim() || "",
         amountReceived:
           paymentMethod === "cash" ? amountReceivedNum : undefined,
         changeAmount: paymentMethod === "cash" ? changeAmount : undefined,
@@ -296,25 +296,25 @@ export default function Checkout({
                         key={method.id}
                         type="button"
                         onClick={() => setPaymentMethod(method.id)}
-                        className={`relative p-6 rounded-2xl border-2 transition-all duration-300 cursor-pointer ${
+                        className={`relative px-4 py-2 rounded-2xl border-2 transition-all duration-300 cursor-pointer flex items-center gap-4 ${
                           isSelected
                             ? "border-blue-500 bg-blue-50 shadow-xl ring-4 ring-blue-100"
                             : "border-gray-200 hover:border-gray-300 hover:shadow-lg"
                         }`}
                       >
-                        {isSelected && (
+                        {/* {isSelected && (
                           <div className="absolute -top-2 -right-2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center shadow-lg">
                             <div className="w-2 h-2 bg-white rounded-full" />
                           </div>
-                        )}
+                        )} */}
 
                         <div
-                          className={`w-14 h-14 rounded-2xl bg-gradient-to-r ${method.gradient} flex items-center justify-center mb-4 mx-auto shadow-lg`}
+                          className={`w-10 h-10 rounded-2xl bg-gradient-to-r ${method.gradient} flex items-center justify-center mx-auto shadow-lg`}
                         >
-                          <Icon className="w-7 h-7 text-white" />
+                          <Icon className="w-4 h-4 text-white" />
                         </div>
 
-                        <div className="text-center">
+                        <div className="text-start">
                           <div className="font-semibold text-gray-900 mb-1 text-lg">
                             {method.label}
                           </div>
@@ -331,7 +331,7 @@ export default function Checkout({
               {/* Cash Payment Details */}
               {paymentMethod === "cash" && (
                 <div className="bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-200 rounded-2xl p-6 space-y-6">
-                  <h4 className="font-semibold text-emerald-800 flex items-center text-lg">
+                  <h4 className="font-semibold text-emerald-800 flex items-center text-lg mb-4">
                     <DollarSign className="w-6 h-6 mr-2" />
                     Cash Payment Details
                   </h4>
@@ -358,7 +358,7 @@ export default function Checkout({
                           value={amountReceived}
                           onChange={(e) => setAmountReceived(e.target.value)}
                           placeholder="0.00"
-                          className="pl-10 h-14 text-xl font-medium border-emerald-200 focus:border-emerald-400 rounded-xl"
+                          className="pl-10 h-12 text-xl font-medium border-emerald-200 focus:border-emerald-400 rounded-xl"
                           required
                         />
                       </div>
@@ -420,7 +420,7 @@ export default function Checkout({
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
                       placeholder="Enter customer name"
-                      className="h-12 rounded-xl border-gray-200 focus:border-blue-400"
+                      className="h-10 rounded-xl border-gray-200 focus:border-blue-400"
                     />
                   </div>
 
@@ -437,7 +437,7 @@ export default function Checkout({
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
                       placeholder="Enter phone number"
-                      className="h-12 rounded-xl border-gray-200 focus:border-blue-400"
+                      className="h-10 rounded-xl border-gray-200 focus:border-blue-400"
                     />
                   </div>
                 </div>
@@ -467,14 +467,14 @@ export default function Checkout({
                   type="button"
                   variant="outline"
                   onClick={handleClose}
-                  className="flex-1 h-14 text-gray-700 border-2 border-gray-200 hover:bg-gray-50 rounded-xl font-medium cursor-pointer"
+                  className="flex-1 h-10 text-gray-700 border-2 border-gray-200 hover:bg-gray-50 rounded-xl font-medium cursor-pointer"
                   disabled={isProcessing}
                 >
                   Cancel
                 </Button>
                 <Button
                   onClick={handleSubmit}
-                  className="flex-1 h-14 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl cursor-pointer"
+                  className="flex-1 h-10 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl cursor-pointer"
                   disabled={!isValidCashPayment || isProcessing}
                 >
                   {isProcessing ? (

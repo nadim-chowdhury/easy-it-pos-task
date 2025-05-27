@@ -93,7 +93,7 @@ export default function Home() {
       />
 
       {/* Navigation */}
-      <Link href="/pos">
+      <Link href="/login">
         <motion.nav
           initial={{ y: -100 }}
           animate={{ y: 0 }}
@@ -277,7 +277,7 @@ export default function Home() {
             Join thousands of merchants who&apos;ve already made the switch to
             FlowPOS
           </p>
-          <Link href="/pos">
+          <Link href="/login">
             <motion.button
               whileHover={{
                 scale: 1.05,

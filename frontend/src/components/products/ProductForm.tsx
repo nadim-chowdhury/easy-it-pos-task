@@ -9,9 +9,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus } from "lucide-react";
 import { Product, CreateProductDto, UpdateProductDto } from "@/lib/api";
 
 interface ProductFormData {
@@ -26,10 +24,9 @@ interface ProductFormProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: CreateProductDto | UpdateProductDto) => void;
-  editingProduct?: Product | null;
+  editingProduct?: any;
   setEditingProduct?: (product: Product | null) => void;
   loading?: boolean;
-  trigger?: React.ReactNode;
 }
 
 export default function ProductForm({
@@ -37,9 +34,7 @@ export default function ProductForm({
   onOpenChange,
   onSubmit,
   editingProduct,
-  setEditingProduct = () => {},
   loading = false,
-  trigger,
 }: ProductFormProps) {
   const [formData, setFormData] = useState<ProductFormData>({
     name: "",
@@ -117,6 +112,7 @@ export default function ProductForm({
     };
 
     onSubmit(submitData);
+    resetForm();
   };
 
   const resetForm = () => {
@@ -137,19 +133,8 @@ export default function ProductForm({
     onOpenChange(open);
   };
 
-  const defaultTrigger = (
-    <Button
-      onClick={() => setEditingProduct(null)}
-      className="gap-2 cursor-pointer"
-    >
-      <Plus className="h-4 w-4" />
-      Add Product
-    </Button>
-  );
-
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>{trigger || defaultTrigger}</DialogTrigger>
       <DialogContent className="">
         <DialogHeader>
           <DialogTitle>
