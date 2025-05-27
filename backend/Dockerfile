@@ -29,4 +29,4 @@ RUN ls -lh dist
 EXPOSE 3001
 
 # Run in production mode
-CMD ["npm", "run", "start:dev"]
+CMD ["npm", "run", "start:prod"]
