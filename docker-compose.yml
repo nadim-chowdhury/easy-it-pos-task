@@ -3,61 +3,98 @@ version: "3.8"
 services:
   # PostgreSQL Database
   postgres:
-    image: postgres:15
+    image: postgres:15-alpine
     container_name: pos_postgres
     environment:
-      POSTGRES_DB: pos_db
-      POSTGRES_USER: pos_user
-      POSTGRES_PASSWORD: pos_password
+      POSTGRES_DB: ${POSTGRES_DB:-pos_db}
+      POSTGRES_USER: ${POSTGRES_USER:-pos_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pos_password}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
     networks:
       - pos_network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-pos_user} -d ${POSTGRES_DB:-pos_db}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
-  # Redis for caching (optional but recommended for performance)
+  # Redis for caching
   redis:
     image: redis:7-alpine
     container_name: pos_redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
     networks:
       - pos_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    command: redis-server --appendonly yes
 
   # Backend (NestJS)
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      target: ${NODE_ENV:-development}
     container_name: pos_backend
     ports:
-      - "3001:3001"
+      - "${BACKEND_PORT:-3001}:3001"
     environment:
-      DATABASE_URL: postgresql://pos_user:pos_password@postgres:5432/pos_db
+      DATABASE_URL: postgresql://${POSTGRES_USER:-pos_user}:${POSTGRES_PASSWORD:-pos_password}@postgres:5432/${POSTGRES_DB:-pos_db}
       REDIS_URL: redis://redis:6379
-      JWT_SECRET: your-super-secret-jwt-key-here
-      NODE_ENV: development
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-here-change-in-production}
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3001
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./backend:/app
       - /app/node_modules
+      - ./backend/logs:/app/logs
     networks:
       - pos_network
-    command: npm run start:dev
+    restart: unless-stopped
+    command: >
+      sh -c "
+        echo 'Waiting for database to be ready...' &&
+        npx prisma migrate deploy &&
+        npx prisma db seed &&
+        npx nest start --watch
+      "
 
   # Frontend (Next.js)
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: ${NODE_ENV:-development}
     container_name: pos_frontend
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3001
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3000
     depends_on:
       - backend
     volumes:
@@ -66,10 +103,13 @@ services:
       - /app/.next
     networks:
       - pos_network
-    command: npm run dev
+    restart: unless-stopped
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
+    driver: local
 
 networks:
   pos_network:
