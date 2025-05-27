@@ -1,59 +1,133 @@
-### ✅ **Step 1: Start the container**
+---
 
-Open a terminal in the same directory as your `docker-compose.yml` file and run:
+````markdown
+# 🐳 Full Stack Dockerized Project
 
-```bash
-docker-compose up -d
-```
+This is a fully Dockerized full-stack project with:
 
-This will:
-
-- Download the `postgres:15` image if needed
-- Start a PostgreSQL container
-- Expose it on `localhost:5432`
+- **Frontend**: [http://127.0.0.1:3000](http://127.0.0.1:3000)
+- **Backend API**: [http://127.0.0.1:3001/api](http://127.0.0.1:3001/api)
+- **Swagger Docs**: [http://127.0.0.1:3001/api/docs](http://127.0.0.1:3001/api/docs)
 
 ---
 
-### ✅ **Step 2: Connect to PostgreSQL**
+## 📦 Prerequisites
 
-You can connect using:
-
-#### 🔹 Connection string (for Prisma, etc.):
-
-```
-postgresql://myuser:mypassword@localhost:5432/mydb
-```
-
-#### 🔹 CLI:
-
-```bash
-docker exec -it local_postgres psql -U myuser -d mydb
-```
-
-#### 🔹 GUI (e.g., pgAdmin, TablePlus, DBeaver):
-
-- Host: `localhost`
-- Port: `5432`
-- User: `myuser`
-- Password: `mypassword`
-- Database: `mydb`
+- **Docker** and **Docker Desktop** installed
+- (Optional) **Node.js** and **npm** for manual fallback
 
 ---
 
-### ✅ Optional: Stop & Clean Up
+## 🚀 Getting Started (Using Docker)
 
-- Stop container:
+1. **Start Docker Desktop** (ensure it’s running)
 
-  ```bash
-  docker-compose down
-  ```
+2. **Open terminal in the project root directory**
 
-- Stop and remove volumes (wipe data):
+3. **Run the following command**:
+   ```bash
+   docker-compose up --build
+   ```
 
-  ```bash
-  docker-compose down -v
-  ```
+````
+
+4. **Wait for the build to complete**. This includes building:
+
+   - Frontend (port `3000`)
+   - Backend (port `3001`)
+   - Database (if applicable)
+
+5. **Check logs** to verify all services are running:
+
+   ```bash
+   docker-compose logs
+   ```
+
+6. **Visit the following links to test:**
+
+   - Frontend UI: [http://127.0.0.1:3000](http://127.0.0.1:3000)
+   - Backend API: [http://127.0.0.1:3001/api](http://127.0.0.1:3001/api)
+   - Swagger Docs: [http://127.0.0.1:3001/api/docs](http://127.0.0.1:3001/api/docs)
 
 ---
 
-Developed by Nadim Chowdhury (https://nadim.vercel.app)
+## ⚙️ Manual Setup (If Docker Fails)
+
+> In case Docker is not working properly, you can manually start both frontend and backend servers.
+
+### 🔧 1. Backend Setup (Port `3001`)
+
+1. Go to the backend directory:
+
+   ```bash
+   cd backend
+   ```
+
+2. **Update the `.env` file** with the correct database URL.
+
+3. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+4. Generate Prisma client:
+
+   ```bash
+   npx prisma generate
+   ```
+
+5. Start the development server:
+
+   ```bash
+   npm run start:dev
+   ```
+
+---
+
+### 🎨 2. Frontend Setup (Port `3000`)
+
+1. Go to the frontend directory:
+
+   ```bash
+   cd frontend
+   ```
+
+2. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+3. Start the development server:
+
+   ```bash
+   npm run dev
+   ```
+
+---
+
+## ✅ Final Testing
+
+Once both servers are up and running, test the project at:
+
+- Frontend: [http://localhost:3000](http://localhost:3000)
+- Backend API: [http://localhost:3001/api](http://localhost:3001/api)
+- Swagger Docs: [http://localhost:3001/api/docs](http://localhost:3001/api/docs)
+
+---
+
+## 🛠 Troubleshooting
+
+- Ensure ports `3000` and `3001` are not in use by other applications.
+- Double-check Docker Desktop is running.
+- Make sure environment variables (especially DB URLs) are correct.
+
+---
+
+Happy coding! 🚀
+
+---
+
+Developed by [Nadim Chowdhury](https://nadim.vercel.app)
+````
