@@ -55,7 +55,7 @@ export default function ProductCard({
             />
 
             <div className="space-y-1 flex-1 min-w-0">
-              <CardTitle className="text-lg leading-tight truncate">
+              <CardTitle className="text-lg leading-tight">
                 {product.name}
               </CardTitle>
               <p className="text-sm text-muted-foreground font-mono">
@@ -68,7 +68,10 @@ export default function ProductCard({
               )}
             </div>
           </div>
-          <Badge variant={stockStatus.variant} className="ml-2 flex-shrink-0">
+          <Badge
+            variant={stockStatus.variant}
+            className="ml-2 mt-2 flex-shrink-0"
+          >
             {stockStatus.label}
           </Badge>
         </div>

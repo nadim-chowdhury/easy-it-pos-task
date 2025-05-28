@@ -183,12 +183,16 @@ export default function ProductForm({
               id="code"
               value={formData.code}
               onChange={(e) =>
-                setFormData((prev) => ({ ...prev, code: e.target.value }))
+                setFormData((prev) => ({
+                  ...prev,
+                  code: e.target.value.replace(/\s+/g, "").toUpperCase(),
+                }))
               }
               placeholder="Enter product code"
               className={formErrors.code ? "border-red-500" : ""}
               disabled={loading}
             />
+
             {formErrors.code && (
               <p className="text-sm text-red-500">{formErrors.code}</p>
             )}

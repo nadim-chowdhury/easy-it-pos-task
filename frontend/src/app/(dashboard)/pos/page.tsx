@@ -23,6 +23,7 @@ import {
 import Cart from "@/components/pos/Cart";
 import { toast } from "sonner";
 import { api, Product, CreateSaleDto, SaleItem } from "@/lib/api";
+import { motion } from "framer-motion";
 
 // Import the hooks
 import { useProducts, useProductSearch } from "@/hooks/useProducts";
@@ -57,7 +58,7 @@ export default function POSpage() {
     loadProducts,
     setCurrentPage,
     setSearchQuery,
-    clearError,
+    // clearError,
   } = useProducts({
     initialItemsPerPage: 12,
     enableApiPagination: true, // Use demo data for now
@@ -319,308 +320,352 @@ export default function POSpage() {
     <div className="min-h-screen bg-gray-50/50 px-6 pt-6">
       <div className="max-w-7xl mx-auto p-4 md:p-0 space-y-6">
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-10 mb-0">
-          <div className="">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center justify-between space-x-3 w-full">
-                <div className="space-y- mb-4">
-                  <h1 className="text-2xl font-bold mb-0 text-gray-900">
-                    Point of Sale
-                  </h1>
-                  <p className="text-gray-600">Manage your sales efficiently</p>
-                </div>
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="mb-0"
+        >
+          <div className="bg-white border-b border-gray-200 sticky top-0 z-10 mb-0">
+            <div className="">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between space-x-3 w-full">
+                  <div className="space-y- mb-4">
+                    <h1 className="text-2xl font-bold mb-0 text-gray-900">
+                      Point of Sale
+                    </h1>
+                    <p className="text-gray-600">
+                      Manage your sales efficiently
+                      {!error && (
+                        <span className="text-green-600 ml-2">
+                          • Connected to API
+                        </span>
+                      )}
+                      {error && !loading && (
+                        <span className="text-orange-600 ml-2">
+                          • API error Using demo data
+                        </span>
+                      )}
+                      {activeSearchQuery && (
+                        <span className="text-blue-600 ml-2">
+                          • Searching: &apos;{activeSearchQuery}&apos;
+                        </span>
+                      )}
+                    </p>
+                  </div>
 
-                {/* Search and Filter Bar */}
-                <div className="flex items-center gap-2">
-                  {isSearching && (
-                    <div
-                      onClick={() => {
-                        setSearchQuery("");
-                        handleSearchChange(""); // Clear search query
-                      }}
-                      className="bg-red-600 text-white p-1 rounded-md cursor-pointer hover:bg-red-700 transition-colors"
-                    >
-                      <X className="w-3 h-3" />
+                  {/* Search and Filter Bar */}
+                  <div className="flex items-center gap-2">
+                    {isSearching && (
+                      <div
+                        onClick={() => {
+                          setSearchQuery("");
+                          handleSearchChange(""); // Clear search query
+                        }}
+                        className="bg-red-600 text-white p-1 rounded-md cursor-pointer hover:bg-red-700 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </div>
+                    )}
+                    {/* Product Search Component */}
+                    <ProductSearch
+                      searchQuery={searchQuery}
+                      onSearchChange={handleSearchChangeWrapper}
+                      onSearchSubmit={handleSearchSubmitWrapper}
+                      className="flex-1 min-w-[300px]"
+                      loading={searchLoading || loading}
+                    />
+
+                    {/* Category Filter */}
+                    <div className="ml-2">
+                      <Select
+                        value={selectedCategory}
+                        onValueChange={handleCategoryChange}
+                      >
+                        <SelectTrigger className="h-12 border-gray-200 cursor-pointer">
+                          <Filter className="w-4 h-4 mr-2" />
+                          <SelectValue placeholder="All Categories" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Categories</SelectItem>
+                          {categories.map((category: any) => (
+                            <SelectItem key={category} value={category}>
+                              {category}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  )}
-                  {/* Product Search Component */}
-                  <ProductSearch
-                    searchQuery={searchQuery}
-                    onSearchChange={handleSearchChangeWrapper}
-                    onSearchSubmit={handleSearchSubmitWrapper}
-                    className="flex-1 min-w-[300px]"
-                    loading={searchLoading || loading}
-                  />
-
-                  {/* Category Filter */}
-                  <div className="ml-2">
-                    <Select
-                      value={selectedCategory}
-                      onValueChange={handleCategoryChange}
-                    >
-                      <SelectTrigger className="h-12 border-gray-200 cursor-pointer">
-                        <Filter className="w-4 h-4 mr-2" />
-                        <SelectValue placeholder="All Categories" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Categories</SelectItem>
-                        {categories.map((category: any) => (
-                          <SelectItem key={category} value={category}>
-                            {category}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="flex h-[calc(100vh-80px)]">
-          {/* Products Section */}
-          <div className="flex-1 py-6 pr-2">
-            <div className="space-y-4">
-              {/* Results Info */}
-              <div className="flex items-center justify-between text-sm text-gray-500 pr-4">
-                <div>
-                  {loading || searchLoading ? (
-                    "Loading..."
-                  ) : (
-                    <>
-                      Showing {currentDisplayCount} of {totalDisplayItems}{" "}
-                      products
-                      {isFiltering && (
-                        <span className="ml-1">
-                          {isSearching && `matching "${searchQuery}"`}
-                          {selectedCategory !== "all" && (
-                            <span>
-                              {isSearching ? " in " : "in "}
-                              <span className="font-medium">
-                                {selectedCategory}
-                              </span>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+        >
+          <div className="flex h-[calc(100vh-80px)]">
+            {/* Products Section */}
+            <div className="flex-1 py-6 pr-2">
+              <div className="space-y-4">
+                {/* Results Info */}
+                <div className="flex items-center justify-between text-sm text-gray-500 pr-4">
+                  <div>
+                    {loading || searchLoading ? (
+                      "Loading..."
+                    ) : (
+                      <div className="flex items-center gap-4">
+                        <div>
+                          Showing {currentDisplayCount} of {totalDisplayItems}{" "}
+                          products
+                          {isFiltering && (
+                            <span className="ml-1">
+                              {isSearching && `matching "${searchQuery}"`}
+                              {selectedCategory !== "all" && (
+                                <span>
+                                  {isSearching ? " in " : "in "}
+                                  <span className="font-medium">
+                                    {selectedCategory}
+                                  </span>
+                                </span>
+                              )}
                             </span>
                           )}
-                        </span>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {pagination && pagination.totalPages > 1 && (
-                  <div className="text-sm text-gray-500">
-                    Page {pagination.page} of {pagination.totalPages}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Error State */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                <p className="text-red-600 text-sm">{error}</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    clearError();
-                    loadProducts(currentPage, itemsPerPage, activeSearchQuery);
-                  }}
-                  className="mt-2 cursor-pointer"
-                >
-                  Retry
-                </Button>
-              </div>
-            )}
-
-            {/* Products Grid */}
-            <div id="products-grid">
-              <ScrollArea className="h-[calc(100vh-192px)] py-4">
-                {loading || searchLoading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {[...Array(12)].map((_, i) => (
-                      <Card key={i} className="animate-pulse">
-                        <CardContent className="p-4">
-                          <div className="h-4 bg-gray-200 rounded mb-2"></div>
-                          <div className="h-3 bg-gray-200 rounded mb-4"></div>
-                          <div className="flex justify-between items-center">
-                            <div className="h-6 bg-gray-200 rounded w-16"></div>
-                            <div className="h-8 bg-gray-200 rounded w-16"></div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pr-4">
-                    {displayProducts.map((product: any) => (
-                      <Card
-                        key={product.id}
-                        className="group hover:shadow-md transition-all duration-200 border-gray-200 cursor-pointer"
-                      >
-                        <CardContent className="px-4">
-                          <div className="flex items-start justify-between mb-3">
-                            <Image
-                              src="https://files.ekmcdn.com/bluestar/images/single-walled-cardboard-box-6-x-6-x-6-pack-of-25-160-p.jpg"
-                              alt=""
-                              width={640}
-                              height={640}
-                              className="object-cover w-16 h-16 rounded-md mr-4 bg-gray-100"
-                            />
-
-                            <div className="flex-1 min-w-0">
-                              <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">
-                                {product.name}
-                              </h3>
-                              <p className="text-sm text-gray-500 font-mono">
-                                {product.code}
-                              </p>
-                              {product.category && (
-                                <p className="text-xs text-gray-400 mt-1">
-                                  Category: {product.category}
-                                </p>
-                              )}
-                            </div>
-                            <Badge
-                              variant={getStockBadgeVariant(product.stockQty)}
-                              className="ml-2 flex-shrink-0"
-                            >
-                              {getStockStatus(product.stockQty)}
-                            </Badge>
-                          </div>
-
-                          <div className="flex items-center justify-between">
-                            <div className="text-xl font-bold text-gray-900">
-                              ${product.price.toFixed(2)}
-                            </div>
+                        </div>
+                        {/* Error State */}
+                        {/* {error && (
+                          <div className="">
+                            <p className="text-red-600 text-sm">
+                              {error} You might see demo data.
+                            </p>
                             <Button
-                              onClick={() => handleAddToCart(product)}
+                              variant="outline"
                               size="sm"
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-4 transition-transform cursor-pointer"
-                              disabled={product.stockQty === 0}
+                              onClick={() => {
+                                // clearError();
+                                loadProducts(
+                                  currentPage,
+                                  itemsPerPage,
+                                  activeSearchQuery
+                                );
+                              }}
+                              className="mt-2 cursor-pointer"
                             >
-                              <Plus className="w-4 h-4 mr-1" />
-                              Add
+                              Retry
                             </Button>
                           </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
-
-                {/* No Products Found */}
-                {!loading && !searchLoading && displayProducts.length === 0 && (
-                  <div className="text-center py-12">
-                    <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-500 mb-2">
-                      {isFiltering
-                        ? "No products found matching your criteria"
-                        : "No products available"}
-                    </p>
-                    {isFiltering && (
-                      <div className="space-y-2">
-                        <p className="text-sm text-gray-400">
-                          Try adjusting your search terms or filters
-                        </p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleClearSearch}
-                          className="cursor-pointer mt-2"
-                        >
-                          Clear Filters
-                        </Button>
+                        )} */}
                       </div>
                     )}
                   </div>
-                )}
-              </ScrollArea>
-            </div>
 
-            {/* Pagination */}
-            {!loading &&
-              !searchLoading &&
-              pagination &&
-              pagination.totalPages > 1 && (
-                <div className="mt-2 flex items-center justify-between pr-4">
-                  <div className="text-sm text-gray-600">
-                    Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
-                    {Math.min(currentPage * itemsPerPage, pagination.total)} of{" "}
-                    {pagination.total} products
-                  </div>
+                  {pagination && pagination.totalPages > 1 && (
+                    <div className="text-sm text-gray-500">
+                      Page {pagination.page} of {pagination.totalPages}
+                    </div>
+                  )}
+                </div>
+              </div>
 
-                  <div className="flex items-center space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handlePageChange(currentPage - 1)}
-                      disabled={!pagination.hasPrevPage}
-                      className="flex items-center cursor-pointer"
-                    >
-                      <ChevronLeft className="w-4 h-4 mr-1" />
-                      Previous
-                    </Button>
+              {/* Products Grid */}
+              <div id="products-grid">
+                <ScrollArea className="h-[calc(100vh-192px)] py-4">
+                  {loading || searchLoading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {[...Array(12)].map((_, i) => (
+                        <Card key={i} className="animate-pulse">
+                          <CardContent className="p-4">
+                            <div className="h-4 bg-gray-200 rounded mb-2"></div>
+                            <div className="h-3 bg-gray-200 rounded mb-4"></div>
+                            <div className="flex justify-between items-center">
+                              <div className="h-6 bg-gray-200 rounded w-16"></div>
+                              <div className="h-8 bg-gray-200 rounded w-16"></div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pr-4">
+                      {displayProducts.map((product: any) => (
+                        <Card
+                          key={product.id}
+                          className="group hover:shadow-md transition-all duration-200 border-gray-200 cursor-pointer"
+                        >
+                          <CardContent className="px-4">
+                            <div className="flex items-start justify-between mb-3">
+                              <Image
+                                src="https://files.ekmcdn.com/bluestar/images/single-walled-cardboard-box-6-x-6-x-6-pack-of-25-160-p.jpg"
+                                alt=""
+                                width={640}
+                                height={640}
+                                className="object-cover w-16 h-16 rounded-md mr-4 bg-gray-100"
+                              />
 
-                    {/* Page Numbers */}
-                    <div className="flex items-center space-x-1">
-                      {Array.from(
-                        { length: Math.min(5, pagination.totalPages) },
-                        (_, i) => {
-                          let pageNum;
-                          if (pagination.totalPages <= 5) {
-                            pageNum = i + 1;
-                          } else if (currentPage <= 3) {
-                            pageNum = i + 1;
-                          } else if (currentPage >= pagination.totalPages - 2) {
-                            pageNum = pagination.totalPages - 4 + i;
-                          } else {
-                            pageNum = currentPage - 2 + i;
-                          }
+                              <div className="flex-1 min-w-0">
+                                <h3 className="font-semibold text-gray-900 mb-1 line-clamp-2">
+                                  {product.name}
+                                </h3>
+                                <p className="text-sm text-gray-500 font-mono">
+                                  {product.code}
+                                </p>
+                                {product.category && (
+                                  <p className="text-xs text-gray-400 mt-1">
+                                    Category: {product.category}
+                                  </p>
+                                )}
+                              </div>
+                              <Badge
+                                variant={getStockBadgeVariant(product.stockQty)}
+                                className="ml-2 flex-shrink-0"
+                              >
+                                {getStockStatus(product.stockQty)}
+                              </Badge>
+                            </div>
 
-                          return (
+                            <div className="flex items-center justify-between">
+                              <div className="text-xl font-bold text-gray-900">
+                                ${product.price.toFixed(2)}
+                              </div>
+                              <Button
+                                onClick={() => handleAddToCart(product)}
+                                size="sm"
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 transition-transform cursor-pointer"
+                                disabled={product.stockQty === 0}
+                              >
+                                <Plus className="w-4 h-4 mr-1" />
+                                Add
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* No Products Found */}
+                  {!loading &&
+                    !searchLoading &&
+                    displayProducts.length === 0 && (
+                      <div className="text-center py-12">
+                        <Package className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                        <p className="text-gray-500 mb-2">
+                          {isFiltering
+                            ? "No products found matching your criteria"
+                            : "No products available"}
+                        </p>
+                        {isFiltering && (
+                          <div className="space-y-2">
+                            <p className="text-sm text-gray-400">
+                              Try adjusting your search terms or filters
+                            </p>
                             <Button
-                              key={pageNum}
-                              variant={
-                                currentPage === pageNum ? "default" : "outline"
-                              }
+                              variant="outline"
                               size="sm"
-                              className="w-8 h-8 p-0 cursor-pointer"
-                              onClick={() => handlePageChange(pageNum)}
+                              onClick={handleClearSearch}
+                              className="cursor-pointer mt-2"
                             >
-                              {pageNum}
+                              Clear Filters
                             </Button>
-                          );
-                        }
-                      )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                </ScrollArea>
+              </div>
+
+              {/* Pagination */}
+              {!loading &&
+                !searchLoading &&
+                pagination &&
+                pagination.totalPages > 1 && (
+                  <div className="mt-2 flex items-center justify-between pr-4">
+                    <div className="text-sm text-gray-600">
+                      Showing {(currentPage - 1) * itemsPerPage + 1} to{" "}
+                      {Math.min(currentPage * itemsPerPage, pagination.total)}{" "}
+                      of {pagination.total} products
                     </div>
 
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handlePageChange(currentPage + 1)}
-                      disabled={!pagination.hasNextPage}
-                      className="flex items-center cursor-pointer"
-                    >
-                      Next
-                      <ChevronRight className="w-4 h-4 ml-1" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-          </div>
+                    <div className="flex items-center space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={!pagination.hasPrevPage}
+                        className="flex items-center cursor-pointer"
+                      >
+                        <ChevronLeft className="w-4 h-4 mr-1" />
+                        Previous
+                      </Button>
 
-          {/* Cart Section */}
-          <Cart
-            cart={cart}
-            totalItems={totalItems}
-            totalPrice={totalPrice}
-            updateQuantity={updateCartItemQuantity}
-            removeFromCart={removeFromCart}
-            processCheckout={processCheckout}
-          />
-        </div>
+                      {/* Page Numbers */}
+                      <div className="flex items-center space-x-1">
+                        {Array.from(
+                          { length: Math.min(5, pagination.totalPages) },
+                          (_, i) => {
+                            let pageNum;
+                            if (pagination.totalPages <= 5) {
+                              pageNum = i + 1;
+                            } else if (currentPage <= 3) {
+                              pageNum = i + 1;
+                            } else if (
+                              currentPage >=
+                              pagination.totalPages - 2
+                            ) {
+                              pageNum = pagination.totalPages - 4 + i;
+                            } else {
+                              pageNum = currentPage - 2 + i;
+                            }
+
+                            return (
+                              <Button
+                                key={pageNum}
+                                variant={
+                                  currentPage === pageNum
+                                    ? "default"
+                                    : "outline"
+                                }
+                                size="sm"
+                                className="w-8 h-8 p-0 cursor-pointer"
+                                onClick={() => handlePageChange(pageNum)}
+                              >
+                                {pageNum}
+                              </Button>
+                            );
+                          }
+                        )}
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={!pagination.hasNextPage}
+                        className="flex items-center cursor-pointer"
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+            </div>
+
+            {/* Cart Section */}
+            <Cart
+              cart={cart}
+              totalItems={totalItems}
+              totalPrice={totalPrice}
+              updateQuantity={updateCartItemQuantity}
+              removeFromCart={removeFromCart}
+              processCheckout={processCheckout}
+            />
+          </div>
+        </motion.div>
       </div>
     </div>
   );

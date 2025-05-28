@@ -227,9 +227,9 @@ export default function ProductList({
             <>
               Showing {startIndex + 1}–{startIndex + displayedCount} of{" "}
               {paginationData.totalItems} products
-              {useApiPagination && (
+              {/* {useApiPagination && (
                 <span className="text-green-600 ml-2">(API)</span>
-              )}
+              )} */}
             </>
           )}
         </p>

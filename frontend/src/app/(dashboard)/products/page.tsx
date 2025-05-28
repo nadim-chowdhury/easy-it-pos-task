@@ -15,7 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 import demoProducts from "@/utils/demo-products-list";
 import { toast } from "sonner";
 
@@ -30,6 +30,7 @@ export default function ProductsPage() {
   // Use the products hook for data management and pagination
   const {
     products,
+    error,
     loading,
     pagination,
     currentPage,
@@ -135,11 +136,13 @@ export default function ProductsPage() {
             <h1 className="text-2xl font-bold mb-0 text-gray-900">Products</h1>
             <p className="text-gray-600">
               Manage your inventory and product catalog
-              {useApiPagination && (
+              {!error && (
                 <span className="text-green-600 ml-2">• Connected to API</span>
               )}
-              {!useApiPagination && products.length === 0 && !loading && (
-                <span className="text-orange-600 ml-2">• Using demo data</span>
+              {error && !loading && (
+                <span className="text-orange-600 ml-2">
+                  • API error Using demo data
+                </span>
               )}
               {activeSearchQuery && (
                 <span className="text-blue-600 ml-2">
@@ -149,7 +152,18 @@ export default function ProductsPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center">
+            {searchQuery.length > 0 && (
+              <div
+                onClick={() => {
+                  loadProducts(1, itemsPerPage, ""); // Reset products to initial state
+                  handleSearchChange(""); // Clear search query
+                }}
+                className="bg-red-600 text-white p-1 rounded-md cursor-pointer hover:bg-red-700 transition-colors mr-2"
+              >
+                <X className="w-3 h-3" />
+              </div>
+            )}
             <ProductSearch
               searchQuery={searchQuery}
               onSearchChange={handleSearchChange}
@@ -159,7 +173,10 @@ export default function ProductsPage() {
             />
 
             {/* Fixed: Use a separate button to trigger the form */}
-            <Button onClick={openCreateForm} className="gap-2 cursor-pointer">
+            <Button
+              onClick={openCreateForm}
+              className="gap-2 cursor-pointer ml-4"
+            >
               <Plus className="h-4 w-4" />
               Add Product
             </Button>

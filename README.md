@@ -1,6 +1,3 @@
----
-
-````markdown
 # 🐳 Full Stack Dockerized Project
 
 This is a fully Dockerized full-stack project with:
@@ -28,8 +25,6 @@ This is a fully Dockerized full-stack project with:
    ```bash
    docker-compose up --build
    ```
-
-````
 
 4. **Wait for the build to complete**. This includes building:
 
@@ -130,4 +125,3 @@ Happy coding! 🚀
 ---
 
 Developed by [Nadim Chowdhury](https://nadim.vercel.app)
-````

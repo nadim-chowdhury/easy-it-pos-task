@@ -892,17 +892,19 @@ export default function SalesHistoryPage() {
           )}
         </motion.div>
 
-        {/* Sale Details Modal */}
-        {isDetailDialogOpen && selectedSale && (
-          <SaleDetailsModal
-            setIsDetailDialogOpen={setIsDetailDialogOpen}
-            selectedSale={selectedSale}
-            formatDate={formatDate}
-            formatTime={formatTime}
-            getPaymentMethodColor={getPaymentMethodColor}
-            getStatusColor={getStatusColor}
-          />
-        )}
+        <AnimatePresence>
+          {/* Sale Details Modal */}
+          {isDetailDialogOpen && selectedSale && (
+            <SaleDetailsModal
+              setIsDetailDialogOpen={setIsDetailDialogOpen}
+              selectedSale={selectedSale}
+              formatDate={formatDate}
+              formatTime={formatTime}
+              getPaymentMethodColor={getPaymentMethodColor}
+              getStatusColor={getStatusColor}
+            />
+          )}
+        </AnimatePresence>
       </div>
     </motion.div>
   );
