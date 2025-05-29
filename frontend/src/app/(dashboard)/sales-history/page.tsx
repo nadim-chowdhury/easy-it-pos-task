@@ -158,9 +158,9 @@ export default function SalesHistoryPage() {
   const stats = calculateStats();
 
   const formatDate = (dateStr: any) => {
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      month: "short",
+    return new Date(dateStr).toLocaleDateString("en-GB", {
       day: "numeric",
+      month: "short",
       year: "numeric",
     });
   };
@@ -201,28 +201,50 @@ export default function SalesHistoryPage() {
     setIsDetailDialogOpen(true);
   };
 
-  const handleExportSales = () => {
+  // Alternative version with detailed item breakdown
+  const handleExportSalesDetailed = () => {
     const csvContent = [
       [
+        "Sale Number",
         "Order ID",
-        "Date",
-        "Time",
-        "Customer",
-        "Items",
-        "Total Amount",
+        "Date & Time",
+        "Customer Name",
+        "Customer Phone",
+        "Product Name",
+        "Product Code",
+        "Quantity",
+        "Unit Price",
+        "Item Total",
+        "Sale Subtotal",
+        "Tax",
+        "Final Amount",
         "Payment Method",
         "Status",
+        "Cashier",
+        "Notes",
       ],
-      ...filteredSales.map((sale: any) => [
-        sale.id,
-        formatDate(sale.createdAt),
-        formatTime(sale.createdAt),
-        sale.customerName || "N/A",
-        sale.items.length,
-        sale.totalAmount.toFixed(2),
-        sale.paymentMethod,
-        sale.status,
-      ]),
+      ...filteredSales.flatMap(
+        (sale: any) =>
+          sale.items?.map((item: any) => [
+            sale.saleNumber || "N/A",
+            sale.id,
+            `${formatDate(sale.createdAt)} - ${formatTime(sale.createdAt)}`,
+            sale.customerName || "N/A",
+            sale.customerPhone || "N/A",
+            item.product?.name || "N/A",
+            item.product?.code || "N/A",
+            item.quantity || 0,
+            item.unitPrice?.toFixed(2) || "0.00",
+            item.total?.toFixed(2) || "0.00",
+            sale.totalAmount?.toFixed(2) || "0.00",
+            sale.tax?.toFixed(2) || "0.00",
+            sale.finalAmount?.toFixed(2) || "0.00",
+            sale.paymentMethod || "N/A",
+            sale.status || "N/A",
+            sale.user?.name || "N/A",
+            `"${sale.notes || "N/A"}"`,
+          ]) || []
+      ),
     ]
       .map((row) => row.join(","))
       .join("\n");
@@ -231,7 +253,7 @@ export default function SalesHistoryPage() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `sales-${filterPeriod}-${
+    a.download = `sales-detailed-${filterPeriod}-${
       new Date().toISOString().split("T")[0]
     }.csv`;
     a.click();
@@ -538,7 +560,7 @@ export default function SalesHistoryPage() {
               </button>
 
               <button
-                onClick={handleExportSales}
+                onClick={handleExportSalesDetailed}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 flex items-center gap-2 cursor-pointer"
               >
                 <Download className="h-4 w-4" />
