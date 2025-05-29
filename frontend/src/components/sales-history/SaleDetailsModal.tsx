@@ -1,5 +1,8 @@
+"use client";
+
 import { motion } from "framer-motion";
-import { Download } from "lucide-react";
+// import { Download } from "lucide-react";
+import ReceiptButton from "./ReceiptButton";
 
 export default function SaleDetailsModal({
   setIsDetailDialogOpen,
@@ -9,6 +12,7 @@ export default function SaleDetailsModal({
   getPaymentMethodColor,
   getStatusColor,
 }: any) {
+  console.log(" selectedSale:", selectedSale);
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -125,7 +129,7 @@ export default function SaleDetailsModal({
                         Code: {item.product.code}
                       </p>
                       <p className="text-sm text-gray-500">
-                        Unit Price: ${(item.unitPrice / 100).toFixed(2)}
+                        Unit Price: ${item.unitPrice.toFixed(2)}
                       </p>
                     </div>
                     <div className="text-right">
@@ -133,7 +137,7 @@ export default function SaleDetailsModal({
                         Qty: {item.quantity}
                       </p>
                       <p className="font-medium text-gray-900">
-                        ${(item.total / 100).toFixed(2)}
+                        ${item.total.toFixed(2)}
                       </p>
                     </div>
                   </motion.div>
@@ -149,14 +153,14 @@ export default function SaleDetailsModal({
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Subtotal</span>
                 <span className="font-medium text-gray-900">
-                  ${(selectedSale.totalAmount / 100).toFixed(2)}
+                  ${selectedSale.totalAmount.toFixed(2)}
                 </span>
               </div>
               {selectedSale.discount > 0 && (
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Discount</span>
                   <span className="font-medium text-red-600">
-                    -${(selectedSale.discount / 100).toFixed(2)}
+                    -${selectedSale.discount.toFixed(2)}
                   </span>
                 </div>
               )}
@@ -164,7 +168,7 @@ export default function SaleDetailsModal({
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Tax</span>
                   <span className="font-medium text-gray-900">
-                    ${(selectedSale.tax / 100).toFixed(2)}
+                    ${selectedSale.tax.toFixed(2)}
                   </span>
                 </div>
               )}
@@ -174,7 +178,7 @@ export default function SaleDetailsModal({
                     Total
                   </span>
                   <span className="text-lg font-bold text-gray-900">
-                    ${(selectedSale.finalAmount / 100).toFixed(2)}
+                    ${selectedSale.finalAmount.toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -185,7 +189,7 @@ export default function SaleDetailsModal({
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600">Amount Received</span>
                     <span className="font-medium text-gray-900">
-                      ${(selectedSale.amountReceived / 100).toFixed(2)}
+                      ${selectedSale.amountReceived.toFixed(2)}
                     </span>
                   </div>
                   {selectedSale.changeAmount &&
@@ -193,7 +197,7 @@ export default function SaleDetailsModal({
                       <div className="flex justify-between items-center mt-1">
                         <span className="text-gray-600">Change Given</span>
                         <span className="font-medium text-gray-900">
-                          ${(selectedSale.changeAmount / 100).toFixed(2)}
+                          ${selectedSale.changeAmount.toFixed(2)}
                         </span>
                       </div>
                     )}
@@ -202,82 +206,14 @@ export default function SaleDetailsModal({
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3 pt-4">
-              <button
-                onClick={() => {
-                  // Generate receipt data for this sale
-                  const receiptData = [
-                    `Sale Number: ${selectedSale.saleNumber}`,
-                    `Date: ${formatDate(selectedSale.createdAt)} ${formatTime(
-                      selectedSale.createdAt
-                    )}`,
-                    `Customer: ${selectedSale.customerName || "N/A"}`,
-                    selectedSale.customerPhone
-                      ? `Phone: ${selectedSale.customerPhone}`
-                      : "",
-                    `Cashier: ${selectedSale.user?.name || "N/A"}`,
-                    selectedSale.notes ? `Notes: ${selectedSale.notes}` : "",
-                    "",
-                    "Items:",
-                    ...selectedSale.items.map(
-                      (item: any) =>
-                        `${item.product.name} (${item.product.code}) - Qty: ${
-                          item.quantity
-                        } - $${(item.total / 100).toFixed(2)}`
-                    ),
-                    "",
-                    `Subtotal: $${(selectedSale.totalAmount / 100).toFixed(2)}`,
-                    selectedSale.discount > 0
-                      ? `Discount: -$${(selectedSale.discount / 100).toFixed(
-                          2
-                        )}`
-                      : "",
-                    selectedSale.tax > 0
-                      ? `Tax: $${(selectedSale.tax / 100).toFixed(2)}`
-                      : "",
-                    `Total: $${(selectedSale.finalAmount / 100).toFixed(2)}`,
-                    "",
-                    `Payment Method: ${selectedSale.paymentMethod.replace(
-                      "_",
-                      " "
-                    )}`,
-                    `Status: ${selectedSale.status}`,
-                    selectedSale.amountReceived
-                      ? `Amount Received: $${(
-                          selectedSale.amountReceived / 100
-                        ).toFixed(2)}`
-                      : "",
-                    selectedSale.changeAmount && selectedSale.changeAmount > 0
-                      ? `Change Given: $${(
-                          selectedSale.changeAmount / 100
-                        ).toFixed(2)}`
-                      : "",
-                  ]
-                    .filter(Boolean)
-                    .join("\n");
-
-                  const blob = new Blob([receiptData], {
-                    type: "text/plain",
-                  });
-                  const url = window.URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `receipt-${selectedSale.saleNumber}.txt`;
-                  a.click();
-                  window.URL.revokeObjectURL(url);
-                }}
-                className="flex-1 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <Download className="h-4 w-4" />
-                Download Receipt
-              </button>
-              <button
+            {/* <button
                 onClick={() => setIsDetailDialogOpen(false)}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 cursor-pointer"
               >
                 Close
-              </button>
-            </div>
+              </button> */}
+
+            <ReceiptButton selectedSale={selectedSale} />
           </div>
         </div>
       </motion.div>

@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,13 +15,21 @@ import {
 } from "@/components/ui/dialog";
 import { Product, CreateProductDto, UpdateProductDto } from "@/lib/api";
 
-interface ProductFormData {
-  name: string;
-  code: string;
-  price: string;
-  stockQty: string;
-  category: string;
-}
+// Validation schema
+const productFormSchema = z.object({
+  name: z.string().min(1, "Product name is required").trim(),
+  code: z.string().min(1, "Product code is required").trim(),
+  price: z
+    .number({ invalid_type_error: "Price must be a number" })
+    .positive("Product price must be greater than 0"),
+  stockQty: z
+    .number({ invalid_type_error: "Stock quantity must be a number" })
+    .int("Stock quantity must be a whole number")
+    .min(0, "Stock quantity cannot be negative"),
+  category: z.string().optional(),
+});
+
+type ProductFormData = z.infer<typeof productFormSchema>;
 
 interface ProductFormProps {
   isOpen: boolean;
@@ -36,72 +47,56 @@ export default function ProductForm({
   editingProduct,
   loading = false,
 }: ProductFormProps) {
-  const [formData, setFormData] = useState<ProductFormData>({
-    name: "",
-    code: "",
-    price: "",
-    stockQty: "",
-    category: "",
-  });
-  const [formErrors, setFormErrors] = useState<Partial<ProductFormData>>({});
   const nameInputRef = useRef<HTMLInputElement>(null);
+
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<ProductFormData>({
+    resolver: zodResolver(productFormSchema),
+    defaultValues: {
+      name: "",
+      code: "",
+      price: 0,
+      stockQty: 0,
+      category: "",
+    },
+    mode: "onChange", // Validate on change for better UX
+  });
 
   // Reset form when editing product changes
   useEffect(() => {
     if (editingProduct) {
-      setFormData({
+      reset({
         name: editingProduct.name,
         code: editingProduct.code,
-        price: editingProduct.price.toString(),
-        stockQty: editingProduct.stockQty.toString(),
+        price: editingProduct.price,
+        stockQty: editingProduct.stockQty,
         category: editingProduct.category || "",
       });
     } else {
-      resetForm();
+      reset({
+        name: "",
+        code: "",
+        price: 0,
+        stockQty: 0,
+        category: "",
+      });
     }
-  }, [editingProduct]);
+  }, [editingProduct, reset]);
 
   // Remove focus when dialog opens with existing product data
   useEffect(() => {
     if (isOpen && editingProduct && nameInputRef.current) {
-      // Small delay to ensure the dialog is fully rendered
       setTimeout(() => {
         nameInputRef.current?.blur();
       }, 100);
     }
   }, [isOpen, editingProduct]);
 
-  const validateForm = (): boolean => {
-    const errors: Partial<ProductFormData> = {};
-
-    // Match API validation from lib/api.ts
-    if (!formData.name.trim()) {
-      errors.name = "Product name is required";
-    }
-
-    if (!formData.code.trim()) {
-      errors.code = "Product code is required";
-    }
-
-    const price = parseFloat(formData.price);
-    if (!formData.price || isNaN(price) || price <= 0) {
-      errors.price = "Product price must be greater than 0";
-    }
-
-    const stockQty = parseInt(formData.stockQty);
-    if (!formData.stockQty || isNaN(stockQty) || stockQty < 0) {
-      errors.stockQty = "Stock quantity cannot be negative";
-    }
-
-    setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!validateForm()) return;
-
+  const onFormSubmit = (data: ProductFormData) => {
     // Step 1: Get the JSON string from localStorage
     const storedData = localStorage.getItem("POSuser");
 
@@ -118,141 +113,153 @@ export default function ProductForm({
 
     // Convert form data to match API interfaces
     const submitData = {
-      name: formData.name.trim(),
-      code: formData.code.trim(),
-      price: parseFloat(formData.price),
-      stockQty: parseInt(formData.stockQty),
-      category: formData.category.trim() || undefined, // Only include if not empty
+      name: data.name,
+      code: data.code,
+      price: data.price,
+      stockQty: data.stockQty,
+      category: data.category?.trim() || undefined,
       createdBy: userId,
     };
 
     onSubmit(submitData);
-    resetForm();
+    handleFormClose();
   };
 
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      code: "",
-      price: "",
-      stockQty: "",
-      category: "",
-    });
-    setFormErrors({});
+  const handleFormClose = () => {
+    reset();
+    onOpenChange(false);
   };
 
-  const handleOpenChange = (open: boolean) => {
-    if (!open) {
-      resetForm();
-    }
-    onOpenChange(open);
+  const formatProductCode = (value: string) => {
+    return value.replace(/\s+/g, "").toUpperCase();
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+    <Dialog open={isOpen} onOpenChange={handleFormClose}>
       <DialogContent className="">
         <DialogHeader>
           <DialogTitle>
             {editingProduct ? "Edit Product" : "Add New Product"}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name">Product Name</Label>
-            <Input
-              ref={nameInputRef}
-              id="name"
-              value={formData.name}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, name: e.target.value }))
-              }
-              placeholder="Enter product name"
-              className={formErrors.name ? "border-red-500" : ""}
-              disabled={loading}
-              autoFocus={!editingProduct} // Only auto-focus when adding new product
+            <Controller
+              name="name"
+              control={control}
+              render={({ field }) => (
+                <Input
+                  {...field}
+                  ref={nameInputRef}
+                  id="name"
+                  placeholder="Enter product name"
+                  className={errors.name ? "border-red-500" : ""}
+                  disabled={loading}
+                  autoFocus={!editingProduct}
+                />
+              )}
             />
-            {formErrors.name && (
-              <p className="text-sm text-red-500">{formErrors.name}</p>
+            {errors.name && (
+              <p className="text-sm text-red-500">{errors.name.message}</p>
             )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="code">Product Code</Label>
-            <Input
-              id="code"
-              value={formData.code}
-              onChange={(e) =>
-                setFormData((prev) => ({
-                  ...prev,
-                  code: e.target.value.replace(/\s+/g, "").toUpperCase(),
-                }))
-              }
-              placeholder="Enter product code"
-              className={formErrors.code ? "border-red-500" : ""}
-              disabled={loading}
+            <Controller
+              name="code"
+              control={control}
+              render={({ field }) => (
+                <Input
+                  {...field}
+                  id="code"
+                  placeholder="Enter product code"
+                  className={errors.code ? "border-red-500" : ""}
+                  disabled={loading}
+                  onChange={(e) => {
+                    const formattedCode = formatProductCode(e.target.value);
+                    field.onChange(formattedCode);
+                  }}
+                />
+              )}
             />
-
-            {formErrors.code && (
-              <p className="text-sm text-red-500">{formErrors.code}</p>
+            {errors.code && (
+              <p className="text-sm text-red-500">{errors.code.message}</p>
             )}
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="category">Category (Optional)</Label>
-            <Input
-              id="category"
-              value={formData.category}
-              onChange={(e) =>
-                setFormData((prev) => ({ ...prev, category: e.target.value }))
-              }
-              placeholder="Enter product category"
-              disabled={loading}
+            <Controller
+              name="category"
+              control={control}
+              render={({ field }) => (
+                <Input
+                  {...field}
+                  id="category"
+                  placeholder="Enter product category"
+                  disabled={loading}
+                />
+              )}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="price">Price ($)</Label>
-              <Input
-                id="price"
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={formData.price}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    price: e.target.value,
-                  }))
-                }
-                placeholder="0.00"
-                className={formErrors.price ? "border-red-500" : ""}
-                disabled={loading}
+              <Controller
+                name="price"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    id="price"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    placeholder="0.00"
+                    className={errors.price ? "border-red-500" : ""}
+                    disabled={loading}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      field.onChange(value === "" ? 0 : parseFloat(value));
+                    }}
+                    value={field.value || ""}
+                  />
+                )}
               />
-              {formErrors.price && (
-                <p className="text-sm text-red-500">{formErrors.price}</p>
+              {errors.price && (
+                <p className="text-sm text-red-500">{errors.price.message}</p>
               )}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="stockQty">Stock Quantity</Label>
-              <Input
-                id="stockQty"
-                type="number"
-                min="0"
-                value={formData.stockQty}
-                onChange={(e) =>
-                  setFormData((prev) => ({
-                    ...prev,
-                    stockQty: e.target.value,
-                  }))
-                }
-                placeholder="0"
-                className={formErrors.stockQty ? "border-red-500" : ""}
-                disabled={loading}
+              <Controller
+                name="stockQty"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    id="stockQty"
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    className={errors.stockQty ? "border-red-500" : ""}
+                    disabled={loading}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      field.onChange(value === "" ? 0 : parseInt(value));
+                    }}
+                    value={field.value || ""}
+                  />
+                )}
               />
-              {formErrors.stockQty && (
-                <p className="text-sm text-red-500">{formErrors.stockQty}</p>
+              {errors.stockQty && (
+                <p className="text-sm text-red-500">
+                  {errors.stockQty.message}
+                </p>
               )}
             </div>
           </div>
@@ -272,7 +279,7 @@ export default function ProductForm({
             <Button
               type="button"
               variant="outline"
-              onClick={() => onOpenChange(false)}
+              onClick={handleFormClose}
               disabled={loading}
               className="cursor-pointer"
             >
