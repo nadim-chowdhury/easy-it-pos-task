@@ -44,7 +44,6 @@ export default function SalesHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<any>(null);
   const [selectedSale, setSelectedSale] = useState<any>(null);
-  console.log(" SalesHistoryPage ~ selectedSale:", selectedSale);
   const [filterPeriod, setFilterPeriod] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -62,7 +61,6 @@ export default function SalesHistoryPage() {
       const salesDemoData = await salesHistoryApi.sales.getAll();
 
       const response = await api.sales.getAll();
-      console.log(" POSpage ~ response:", response);
 
       setSales(response.data.data || salesDemoData);
     } catch (err) {
@@ -120,6 +118,7 @@ export default function SalesHistoryPage() {
     }
     return passesDateFilter && passesSearchFilter;
   });
+  console.log(" filteredSales ~ filteredSales:", filteredSales);
 
   // Reset to first page when filters change
   useEffect(() => {

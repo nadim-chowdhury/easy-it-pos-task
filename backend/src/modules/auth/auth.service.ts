@@ -87,7 +87,6 @@ export class AuthService {
         message: 'User registered successfully',
       };
     } catch (error) {
-      console.log('register ~ error:', error);
       if (error instanceof ConflictException) {
         throw error;
       }

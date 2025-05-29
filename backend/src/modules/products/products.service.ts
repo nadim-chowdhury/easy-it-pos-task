@@ -384,7 +384,19 @@ export class ProductsService {
     try {
       const product = await this.findOne(id);
 
-      // Soft delete
+      // Check if product has been sold (has associated sale items)
+      const soldItems = await this.prisma.saleItem.findFirst({
+        where: { productId: id },
+        select: { id: true }, // Only select id for performance
+      });
+
+      if (soldItems) {
+        throw new BadRequestException(
+          'Cannot delete product that has been sold. Product has sales history and must be kept for data integrity.',
+        );
+      }
+
+      // Soft delete only if product hasn't been sold
       await this.prisma.product.update({
         where: { id },
         data: { isActive: false },
@@ -393,14 +405,17 @@ export class ProductsService {
       this.logger.log(`Product deleted: ${product.name} (${product.code})`);
       return { message: 'Product deleted successfully' };
     } catch (error) {
-      if (error instanceof NotFoundException) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       this.logger.error(`Error deleting product ${id}`, error);
       throw new BadRequestException('Failed to delete product');
     }
   }
-
+  
   // Helper method to reduce stock during sales
   async reduceStock(productId: string, quantity: number, saleId?: string) {
     try {

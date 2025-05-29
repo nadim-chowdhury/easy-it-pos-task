@@ -1,75 +1,91 @@
+import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api";
 
-// Fixed apiRequest function with proper token handling
-async function apiRequest<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const url = `${API_BASE_URL}${endpoint}`;
+// Create axios instance with base configuration
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
 
-  // Get access token from localStorage
-  let accessToken = null;
-  if (typeof window !== "undefined") {
-    try {
-      const storedData = localStorage.getItem("POSuser");
-      if (storedData) {
-        const parsedData = JSON.parse(storedData);
-        // Try different possible token locations
-        accessToken =
-          parsedData?.token ||
-          parsedData?.data?.token ||
-          parsedData?.accessToken ||
-          parsedData?.data?.accessToken ||
-          null;
+// Request interceptor to add auth token
+apiClient.interceptors.request.use(
+  (config) => {
+    // Get access token from localStorage
+    let accessToken = null;
+    if (typeof window !== "undefined") {
+      try {
+        const storedData = localStorage.getItem("POSuser");
+        if (storedData) {
+          const parsedData = JSON.parse(storedData);
+          // Try different possible token locations
+          accessToken =
+            parsedData?.token ||
+            parsedData?.data?.token ||
+            parsedData?.accessToken ||
+            parsedData?.data?.accessToken ||
+            null;
+        }
+      } catch (error) {
+        console.error("Error parsing stored user data:", error);
       }
-    } catch (error) {
-      console.error("Error parsing stored user data:", error);
+    }
+
+    // Add token to headers if available
+    if (accessToken) {
+      config.headers.Authorization = `Bearer ${accessToken}`;
+    }
+
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Response interceptor for error handling
+apiClient.interceptors.response.use(
+  (response: AxiosResponse) => {
+    return response;
+  },
+  (error) => {
+    console.error(`API request failed:`, error);
+
+    // Handle different error scenarios
+    if (error.response) {
+      // Server responded with error status
+      const errorMessage =
+        error.response.data?.message ||
+        `HTTP error! status: ${error.response.status}`;
+      console.error("API Error Response:", error.response.data);
+      throw new Error(errorMessage);
+    } else if (error.request) {
+      // Request was made but no response received
+      console.error("No response received:", error.request);
+      throw new Error("Network error: No response from server");
+    } else {
+      // Something else happened
+      console.error("Request setup error:", error.message);
+      throw new Error(error.message);
     }
   }
+);
 
-  console.log("Access token:", accessToken);
-
-  const config: RequestInit = {
-    headers: {
-      "Content-Type": "application/json",
-      // Send token without "Bearer " prefix - try this first
-      // ...(accessToken && { Authorization: accessToken }),
-      ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
-      ...options.headers,
-    },
-    ...options,
-  };
-
-  // If the above doesn't work, try with "Bearer " prefix:
-  // ...(accessToken && { Authorization: `Bearer ${accessToken}` }),
-
-  console.log("Request headers:", config.headers);
-
+// Generic API request function
+async function apiRequest<T>(
+  endpoint: string,
+  options: AxiosRequestConfig = {}
+): Promise<T> {
   try {
-    const response = await fetch(url, config);
+    const response = await apiClient.request<T>({
+      url: endpoint,
+      ...options,
+    });
 
-    if (!response.ok) {
-      let errorMessage = `HTTP error! status: ${response.status}`;
-
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.message || errorMessage;
-        console.error("API Error Response:", errorData);
-      } catch {
-        // If response is not JSON, use default error message
-      }
-
-      throw new Error(errorMessage);
-    }
-
-    // Handle empty responses (like DELETE operations)
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/json")) {
-      return await response.json();
-    }
-
-    return {} as T;
+    return response.data;
   } catch (error) {
     console.error(`API request failed for ${endpoint}:`, error);
     throw error;
@@ -274,7 +290,9 @@ export const productsAPI = {
         queryParams.toString() ? "?" + queryParams.toString() : ""
       }`;
 
-      return await apiRequest<ApiResponse<ProductsResponse>>(endpoint);
+      return await apiRequest<ApiResponse<ProductsResponse>>(endpoint, {
+        method: "GET",
+      });
     } catch (error) {
       console.error("Error fetching products:", error);
       throw new Error("Failed to fetch products");
@@ -286,7 +304,9 @@ export const productsAPI = {
    */
   getById: async (id: string): Promise<ApiResponse<Product>> => {
     try {
-      return await apiRequest<ApiResponse<Product>>(`/products/${id}`);
+      return await apiRequest<ApiResponse<Product>>(`/products/${id}`, {
+        method: "GET",
+      });
     } catch (error) {
       console.error(`Error fetching product ${id}:`, error);
       throw new Error("Failed to fetch product");
@@ -314,7 +334,7 @@ export const productsAPI = {
 
       return await apiRequest<ApiResponse<Product>>("/products", {
         method: "POST",
-        body: JSON.stringify({
+        data: {
           name: product.name.trim(),
           code: product.code.trim(),
           price: Number(product.price),
@@ -323,7 +343,7 @@ export const productsAPI = {
           description: product.description?.trim() || undefined,
           barcode: product.barcode?.trim() || undefined,
           createdBy: product.createdBy?.trim() || undefined,
-        }),
+        },
       });
     } catch (error) {
       console.error("Error creating product:", error);
@@ -361,7 +381,7 @@ export const productsAPI = {
 
       return await apiRequest<ApiResponse<Product>>(`/products/${id}`, {
         method: "PUT",
-        body: JSON.stringify(cleanUpdates),
+        data: cleanUpdates,
       });
     } catch (error) {
       console.error(`Error updating product ${id}:`, error);
@@ -399,7 +419,8 @@ export const productsAPI = {
 
       const encodedQuery = encodeURIComponent(query.trim());
       return await apiRequest<ApiResponse<Product[]>>(
-        `/products/search?q=${encodedQuery}`
+        `/products/search?q=${encodedQuery}`,
+        { method: "GET" }
       );
     } catch (error) {
       console.error("Error searching products:", error);
@@ -433,7 +454,6 @@ export const salesAPI = {
    * POST /sales - Accept cart items, reduce stock, and save sale
    */
   create: async (sale: CreateSaleDto): Promise<ApiResponse<Sale>> => {
-    console.log(" create: ~ sale:", sale);
     try {
       // Validate sale data
       if (!sale.items || sale.items.length === 0) {
@@ -461,14 +481,12 @@ export const salesAPI = {
         }
       }
 
-      // const userData = getUserData();
       const saleData = {
         ...sale,
         customerName: sale.customerName?.trim() || undefined,
         customerPhone: sale.customerPhone?.trim() || undefined,
         notes: sale.notes?.trim() || undefined,
         totalAmount: Number(sale.totalAmount),
-        // userId: userData?.data?.user?.id || null,
         taxAmount: sale.taxAmount ? Number(sale.taxAmount) : undefined,
         subtotal: sale.subtotal ? Number(sale.subtotal) : undefined,
         amountReceived: sale.amountReceived
@@ -479,7 +497,7 @@ export const salesAPI = {
 
       return await apiRequest<ApiResponse<Sale>>("/sales", {
         method: "POST",
-        body: JSON.stringify(saleData),
+        data: saleData,
       });
     } catch (error) {
       console.error("Error creating sale:", error);
@@ -509,7 +527,7 @@ export const salesAPI = {
 
       return await apiRequest<
         ApiResponse<{ data: Sale[]; pagination: PaginationInfo }>
-      >(endpoint);
+      >(endpoint, { method: "GET" });
     } catch (error) {
       console.error("Error fetching sales:", error);
       throw new Error("Failed to fetch sales history");
@@ -559,7 +577,7 @@ export const salesAPI = {
 
       return await apiRequest<
         ApiResponse<{ data: Sale[]; pagination: PaginationInfo }>
-      >(`/sales/search?${queryParams.toString()}`);
+      >(`/sales/search?${queryParams.toString()}`, { method: "GET" });
     } catch (error) {
       console.error("Error searching sales:", error);
       throw new Error("Failed to search sales");
@@ -571,7 +589,9 @@ export const salesAPI = {
    */
   getById: async (id: string): Promise<ApiResponse<Sale>> => {
     try {
-      return await apiRequest<ApiResponse<Sale>>(`/sales/${id}`);
+      return await apiRequest<ApiResponse<Sale>>(`/sales/${id}`, {
+        method: "GET",
+      });
     } catch (error) {
       console.error(`Error fetching sale ${id}:`, error);
       throw new Error("Failed to fetch sale details");

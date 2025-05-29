@@ -15,11 +15,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const jwtSecret =
       configService.get<string>('JWT_SECRET') || 'your-secret-key';
 
-    console.log('=== JWT Strategy Constructor ===');
-    console.log(`JWT Secret exists: ${!!jwtSecret}`);
-    console.log(`JWT Secret length: ${jwtSecret?.length || 0}`);
-    console.log(`JWT Secret: ${jwtSecret}`); // Remove this in production!
-
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,

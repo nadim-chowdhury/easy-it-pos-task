@@ -755,6 +755,18 @@ export class ProductsController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Failed to delete product',
   })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Cannot delete product with sales history',
+    schema: {
+      example: {
+        statusCode: 400,
+        message:
+          'Cannot delete product that has been sold. Product has sales history and must be kept for data integrity.',
+        error: 'Bad Request',
+      },
+    },
+  })
   async remove(@Param('id') id: string) {
     return this.productsService.remove(id);
   }

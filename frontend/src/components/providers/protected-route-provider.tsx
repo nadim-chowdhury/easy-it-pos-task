@@ -21,9 +21,7 @@ export default function ProtectedRoute({ children }: Props) {
   useEffect(() => {
     const localData = localStorage.getItem("POSuser");
     const parsedData = localData ? JSON.parse(localData) : null;
-    console.log(" useEffect ~ parsedData:", parsedData);
     const token = parsedData?.data?.token;
-    console.log(" useEffect ~ token:", token);
 
     if (!token) {
       router.push("/login");

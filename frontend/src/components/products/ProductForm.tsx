@@ -115,7 +115,6 @@ export default function ProductForm({
 
     // Step 3: Access the user ID
     const userId = parsedData?.data?.user?.id;
-    console.log("handleSubmit ~ userId:", userId);
 
     // Convert form data to match API interfaces
     const submitData = {

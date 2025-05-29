@@ -54,7 +54,6 @@ export class SalesService {
 
     // Extract user from access token
     const userId = await this.getUserIdFromToken(token);
-    console.log(' userId:', userId);
 
     try {
       return await this.prisma.$transaction(async (prisma) => {
@@ -167,7 +166,6 @@ export class SalesService {
             })),
           },
         };
-        console.log(saleData);
 
         const sale = await prisma.sale.create({
           data: saleData,
@@ -218,7 +216,6 @@ export class SalesService {
 
   // Enhanced getUserIdFromToken method with better error handling and logging
   private async getUserIdFromToken(accessToken: string): Promise<string> {
-    console.log(' getUserIdFromToken ~ accessToken:', accessToken);
     try {
       this.logger.debug('Starting token validation process');
 
@@ -262,8 +259,6 @@ export class SalesService {
           );
         }
       }
-
-      console.log(' getUserIdFromToken ~ decoded:', decoded);
 
       // Extract user ID from token payload - check standard claims first
       const userId = decoded.sub || decoded.userId || decoded.id;
@@ -327,7 +322,6 @@ export class SalesService {
       let whereClause = {};
       if (accessToken) {
         const userId = await this.getUserIdFromToken(accessToken);
-        console.log(' userId:', userId);
         const user = await this.prisma.user.findUnique({
           where: { id: userId },
           select: { role: true },

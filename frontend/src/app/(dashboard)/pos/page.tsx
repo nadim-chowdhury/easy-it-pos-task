@@ -266,13 +266,11 @@ export default function POSpage() {
         amountReceived: checkoutData.amountReceived,
         changeAmount: checkoutData.changeAmount,
       };
-      console.log("POSpage ~ saleDataForAPI:", saleDataForAPI);
 
       // In demo mode, simulate API call
       // In production, you would use: await api.sales.create(saleDataForAPI);
       // await new Promise((resolve) => setTimeout(resolve, 1000));
-      const response = await api.sales.create(saleDataForAPI);
-      console.log(" POSpage ~ response:", response);
+      await api.sales.create(saleDataForAPI);
 
       // Simulate stock reduction by reloading products
       await loadProducts(currentPage, itemsPerPage, activeSearchQuery);
@@ -309,7 +307,6 @@ export default function POSpage() {
   };
 
   const isSearching = searchQuery.trim().length >= 1 && !searchLoading;
-  console.log(" POSpage ~ isSearching:", isSearching);
   const isFiltering = selectedCategory !== "all";
 
   // Calculate display stats

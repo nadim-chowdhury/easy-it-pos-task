@@ -25,10 +25,8 @@ export default function Header() {
 
   const router = useRouter();
   const pathname = usePathname();
-  console.log(" Header ~ pathname:", pathname);
   const localData = localStorage.getItem("POSuser");
   const parsedData = localData ? JSON.parse(localData) : null;
-  console.log(" useEffect ~ parsedData:", parsedData);
 
   const navLinks = [
     { id: "pos", label: "POS", icon: ShoppingCart, href: "/pos" },
