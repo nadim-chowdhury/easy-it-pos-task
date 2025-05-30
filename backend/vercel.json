@@ -2,14 +2,14 @@
   "version": 2,
   "builds": [
     {
-      "src": "dist/main.js",
+      "src": "backend/dist/main.js",
       "use": "@vercel/node",
       "config": {
         "includeFiles": [
-          "dist/**",
-          "node_modules/.prisma/**",
-          "node_modules/@prisma/**",
-          "prisma/**"
+          "backend/dist/**",
+          "backend/node_modules/.prisma/**",
+          "backend/node_modules/@prisma/**",
+          "backend/prisma/**"
         ]
       }
     }
@@ -17,15 +17,17 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "dist/main.js",
+      "dest": "backend/dist/main.js",
       "methods": ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     }
   ],
+  "installCommand": "cd backend && npm install",
+  "buildCommand": "cd backend && npx prisma generate && npm run build",
   "env": {
     "NODE_ENV": "production"
   },
   "functions": {
-    "dist/main.js": {
+    "backend/dist/main.js": {
       "maxDuration": 30
     }
   }
