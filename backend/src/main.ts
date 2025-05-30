@@ -61,26 +61,26 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   // Swagger documentation
-  if (process.env.NODE_ENV !== 'production') {
-    const config = new DocumentBuilder()
-      .setTitle('POS System API')
-      .setDescription('Point of Sale System REST API Documentation')
-      .setVersion('1.0')
-      .addBearerAuth()
-      // .addTag('auth', 'Authentication endpoints')
-      // .addTag('products', 'Product management endpoints')
-      // .addTag('sales', 'Sales management endpoints')
-      .build();
+  // if (process.env.NODE_ENV !== 'production') {
+  const config = new DocumentBuilder()
+    .setTitle('POS System API')
+    .setDescription('Point of Sale System REST API Documentation')
+    .setVersion('1.0')
+    .addBearerAuth()
+    // .addTag('auth', 'Authentication endpoints')
+    // .addTag('products', 'Product management endpoints')
+    // .addTag('sales', 'Sales management endpoints')
+    .build();
 
-    const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api/docs', app, document, {
-      swaggerOptions: {
-        persistAuthorization: true,
-      },
-    });
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+  });
 
-    logger.log('Swagger documentation available at /api/docs', 'Bootstrap');
-  }
+  logger.log('Swagger documentation available at /api/docs', 'Bootstrap');
+  // }
 
   // Health check endpoint
   app.getHttpAdapter().get('/health', (req, res) => {
@@ -99,8 +99,11 @@ async function bootstrap() {
     `🚀 Application is running on: http://localhost:${port}`,
     'Bootstrap',
   );
-  logger.log(`📚 Swagger docs: http://localhost:${port}/api/docs`, 'Bootstrap');
-  logger.log(`🏥 Health check: http://localhost:${port}/health`, 'Bootstrap');
+  logger.log(
+    `>>> Swagger docs: http://localhost:${port}/api/docs`,
+    'Bootstrap',
+  );
+  logger.log(`>>> Health check: http://localhost:${port}/health`, 'Bootstrap');
 }
 
 bootstrap().catch((error) => {

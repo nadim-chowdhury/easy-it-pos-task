@@ -1,5 +1,6 @@
 import { ApiProperty, PartialType } from '@nestjs/swagger';
 import { CreateProductDto } from './create-product.dto';
+import { IsArray, IsOptional, IsString, IsUrl } from 'class-validator';
 
 export class UpdateProductDto extends PartialType(CreateProductDto) {
   @ApiProperty({
@@ -72,4 +73,30 @@ export class UpdateProductDto extends PartialType(CreateProductDto) {
     maxLength: 100,
   })
   barcode?: string;
+
+  // @ApiProperty({
+  //   description: 'Array of product image URLs',
+  //   example: [
+  //     'https://res.cloudinary.com/your-cloud/image/upload/v123/products/image1.jpg',
+  //     'https://res.cloudinary.com/your-cloud/image/upload/v123/products/image2.jpg',
+  //   ],
+  //   required: false,
+  //   type: [String],
+  //   maxItems: 5,
+  // })
+  // @IsOptional()
+  // @IsArray()
+  // @IsUrl({}, { each: true, message: 'Each image must be a valid URL' })
+  // images?: string[];
+
+  @ApiProperty({
+    description: 'Main product image URL',
+    example:
+      'https://res.cloudinary.com/your-cloud/image/upload/v123/products/image1.jpg',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @IsUrl({}, { message: 'Main image must be a valid URL' })
+  mainImage?: string;
 }

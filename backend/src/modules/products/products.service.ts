@@ -13,15 +13,20 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { SearchProductsDto } from './dto/search-products.dto';
 import { ProductResponseDto } from './dto/product-response.dto';
 import { PaginationDto } from './dto/pagination.dto';
+import { CloudinaryService } from '../../common/services/cloudinary.service';
 
 @Injectable()
 export class ProductsService {
   private readonly logger = new Logger(ProductsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   async create(
     createProductDto: CreateProductDto,
+    imageFile?: Express.Multer.File,
   ): Promise<ProductResponseDto> {
     try {
       // Check if product code already exists
@@ -33,11 +38,20 @@ export class ProductsService {
         throw new ConflictException('Product with this code already exists');
       }
 
+      // Upload image if provided
+      let imageUrl: string | null = null;
+      if (imageFile) {
+        imageUrl = await this.cloudinaryService.uploadImage(
+          imageFile,
+          'products',
+        );
+      }
+
       const product = await this.prisma.product.create({
         data: {
           ...createProductDto,
-          // Convert price to number since Prisma schema expects Float
           price: Number(createProductDto.price),
+          imageUrl,
         },
       });
 
@@ -61,6 +75,72 @@ export class ProductsService {
       }
       this.logger.error('Error creating product', error);
       throw new BadRequestException('Failed to create product');
+    }
+  }
+
+  async update(
+    id: string,
+    updateProductDto: UpdateProductDto,
+    imageFile?: Express.Multer.File,
+  ): Promise<ProductResponseDto> {
+    try {
+      const existingProduct = await this.findOne(id);
+
+      // Check for code conflicts if code is being updated
+      if (
+        updateProductDto.code &&
+        updateProductDto.code !== existingProduct.code
+      ) {
+        const codeExists = await this.prisma.product.findFirst({
+          where: {
+            code: updateProductDto.code,
+            id: { not: id },
+            isActive: true,
+          },
+        });
+
+        if (codeExists) {
+          throw new ConflictException('Product with this code already exists');
+        }
+      }
+
+      const updateData: any = { ...updateProductDto };
+      if (updateProductDto.price !== undefined) {
+        updateData.price = Number(updateProductDto.price);
+      }
+
+      // Handle image updates
+      let newImageUrl = existingProduct.imageUrl;
+
+      if (imageFile) {
+        // Delete old image if exists
+        if (existingProduct.imageUrl) {
+          await this.cloudinaryService.deleteImage(existingProduct.imageUrl);
+        }
+        // Upload new image
+        newImageUrl = await this.cloudinaryService.uploadImage(
+          imageFile,
+          'products',
+        );
+        updateData.imageUrl = newImageUrl;
+      }
+
+      const product = await this.prisma.product.update({
+        where: { id },
+        data: updateData,
+      });
+
+      this.logger.log(`Product updated: ${product.name} (${product.code})`);
+      return this.mapToResponseDto(product);
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof ConflictException
+      ) {
+        throw error;
+      }
+      this.logger.error(`Error updating product ${id}`, error);
+      throw new BadRequestException('Failed to update product');
     }
   }
 
@@ -121,16 +201,6 @@ export class ProductsService {
           skip,
           take: validatedLimit,
           orderBy: { [validSortBy]: validSortOrder },
-          include: {
-            // category: {
-            //   select: { id: true, name: true },
-            // },
-            // images: {
-            //   select: { id: true, url: true, alt: true },
-            //   orderBy: { order: 'asc' },
-            //   take: 1,
-            // },
-          },
         }),
         this.prisma.product.count({ where: whereClause }),
       ]);
@@ -193,7 +263,6 @@ export class ProductsService {
               mode: 'insensitive' as const,
             },
           },
-          // Remove barcode search since it's not in the schema
         ],
       };
 
@@ -265,56 +334,6 @@ export class ProductsService {
     }
   }
 
-  async update(
-    id: string,
-    updateProductDto: UpdateProductDto,
-  ): Promise<ProductResponseDto> {
-    try {
-      const existingProduct = await this.findOne(id);
-
-      // Check for code conflicts if code is being updated
-      if (
-        updateProductDto.code &&
-        updateProductDto.code !== existingProduct.code
-      ) {
-        const codeExists = await this.prisma.product.findFirst({
-          where: {
-            code: updateProductDto.code,
-            id: { not: id },
-            isActive: true,
-          },
-        });
-
-        if (codeExists) {
-          throw new ConflictException('Product with this code already exists');
-        }
-      }
-
-      const updateData: any = { ...updateProductDto };
-      if (updateProductDto.price !== undefined) {
-        // Convert price to number since Prisma schema expects Float
-        updateData.price = Number(updateProductDto.price);
-      }
-
-      const product = await this.prisma.product.update({
-        where: { id },
-        data: updateData,
-      });
-
-      this.logger.log(`Product updated: ${product.name} (${product.code})`);
-      return this.mapToResponseDto(product);
-    } catch (error) {
-      if (
-        error instanceof NotFoundException ||
-        error instanceof ConflictException
-      ) {
-        throw error;
-      }
-      this.logger.error(`Error updating product ${id}`, error);
-      throw new BadRequestException('Failed to update product');
-    }
-  }
-
   async updateStock(id: string, quantity: number, reason: string) {
     if (quantity < 0) {
       throw new BadRequestException('Stock quantity cannot be negative');
@@ -359,7 +378,6 @@ export class ProductsService {
   async getLowStockProducts() {
     try {
       // Since minStock is not in the schema, we'll use a default threshold of 10
-      // You should add minStock field to your Product model if you need this functionality
       const lowStockThreshold = 10;
 
       const products = await this.prisma.product.findMany({
@@ -394,6 +412,11 @@ export class ProductsService {
         throw new BadRequestException(
           'Cannot delete product that has been sold. Product has sales history and must be kept for data integrity.',
         );
+      }
+
+      // Delete image from Cloudinary if exists
+      if (product.imageUrl) {
+        await this.cloudinaryService.deleteImage(product.imageUrl);
       }
 
       // Soft delete only if product hasn't been sold
@@ -521,6 +544,128 @@ export class ProductsService {
     }
   }
 
+  async uploadImage(file: Express.Multer.File): Promise<{ imageUrl: string }> {
+    try {
+      const imageUrl = await this.cloudinaryService.uploadImage(
+        file,
+        'products',
+      );
+      return { imageUrl };
+    } catch (error) {
+      this.logger.error('Error uploading image', error);
+      throw new InternalServerErrorException('Failed to upload image');
+    }
+  }
+
+  async uploadImages(
+    files: Express.Multer.File[],
+  ): Promise<{ imageUrls: string[] }> {
+    try {
+      const imageUrls = await this.cloudinaryService.uploadMultipleImages(
+        files,
+        'products',
+      );
+      return { imageUrls };
+    } catch (error) {
+      this.logger.error('Error uploading images', error);
+      throw new InternalServerErrorException('Failed to upload images');
+    }
+  }
+
+  async uploadProductImages(
+    id: string,
+    files: Express.Multer.File[],
+    replaceExisting: boolean = false,
+  ): Promise<ProductResponseDto> {
+    try {
+      const product = await this.findOne(id);
+
+      // Upload new images
+      const newImageUrls = await this.cloudinaryService.uploadMultipleImages(
+        files,
+        'products',
+      );
+
+      let updatedImageUrls: string[];
+
+      if (replaceExisting) {
+        // Delete existing images if replacing
+        if (product.imageUrl) {
+          await this.cloudinaryService.deleteImage(product.imageUrl);
+        }
+        // If you have multiple images stored, delete them here
+        updatedImageUrls = newImageUrls;
+      } else {
+        // Append to existing images
+        const existingUrls = product.imageUrl ? [product.imageUrl] : [];
+        updatedImageUrls = [...existingUrls, ...newImageUrls];
+      }
+
+      // Update product with new image URL (using first image as primary)
+      const updatedProduct = await this.prisma.product.update({
+        where: { id },
+        data: {
+          imageUrl: updatedImageUrls[0] || null,
+          // If you have an images array field, uncomment below:
+          // images: updatedImageUrls
+        },
+      });
+
+      this.logger.log(
+        `Images uploaded for product: ${product.name} (${product.code})`,
+      );
+      return this.mapToResponseDto(updatedProduct);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(`Error uploading images for product ${id}`, error);
+      throw new InternalServerErrorException('Failed to upload product images');
+    }
+  }
+
+  async removeProductImages(
+    id: string,
+    imageUrls: string[],
+  ): Promise<ProductResponseDto> {
+    try {
+      const product = await this.findOne(id);
+
+      // Delete images from Cloudinary
+      await Promise.all(
+        imageUrls.map((url) => this.cloudinaryService.deleteImage(url)),
+      );
+
+      // Update product to remove the deleted image URLs
+      let newImageUrl = product.imageUrl || null;
+
+      // If the primary image is being removed, set to null
+      if (imageUrls.includes(product.imageUrl)) {
+        newImageUrl = null;
+      }
+
+      const updatedProduct = await this.prisma.product.update({
+        where: { id },
+        data: {
+          imageUrl: newImageUrl,
+          // If you have an images array field, filter out the removed URLs:
+          // images: existingImages.filter(url => !imageUrls.includes(url))
+        },
+      });
+
+      this.logger.log(
+        `Images removed from product: ${product.name} (${product.code})`,
+      );
+      return this.mapToResponseDto(updatedProduct);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      this.logger.error(`Error removing images from product ${id}`, error);
+      throw new InternalServerErrorException('Failed to remove product images');
+    }
+  }
+
   // Private helper methods
   private logStockMovement(
     productId: string,
@@ -536,7 +681,7 @@ export class ProductsService {
       // we'll just log it for now
       // You need to create a StockMovement model in your schema
       this.logger.log(
-        `Stock Movement: Product ${productId}, Type: ${movementType}, Qty: ${quantity}, Previous: ${previousQty}, New: ${newQty}, Reason: ${reason}`,
+        `Stock Movement: Product ${productId}, Type: ${movementType}, Qty: ${quantity}, Previous: ${previousQty}, New: ${newQty}, Reason: ${reason}${reference ? `, Reference: ${reference}` : ''}`,
       );
     } catch (error) {
       this.logger.error('Error logging stock movement', error);
@@ -555,6 +700,7 @@ export class ProductsService {
       minStock: 10, // Default value since minStock is not in schema
       category: product.category || 'General', // Default category if not in schema
       barcode: product.barcode || null, // Default if not in schema
+      imageUrl: product.imageUrl || null, // Include imageUrl from the product
       isActive: product.isActive,
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,

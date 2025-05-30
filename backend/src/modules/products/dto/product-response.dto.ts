@@ -90,4 +90,21 @@ export class ProductResponseDto {
     format: 'date-time',
   })
   updatedAt: Date;
+
+  // @ApiProperty({
+  //   description: 'Array of product image URLs',
+  //   example: [
+  //     'https://res.cloudinary.com/your-cloud/image/upload/v123/products/image1.jpg',
+  //     'https://res.cloudinary.com/your-cloud/image/upload/v123/products/image2.jpg',
+  //   ],
+  //   type: [String],
+  // })
+  // images: string[];
+
+  @ApiProperty({
+    description: 'Main product image URL',
+    example:
+      'https://res.cloudinary.com/your-cloud/image/upload/v123/products/image1.jpg',
+  })
+  imageUrl: string;
 }

@@ -11,6 +11,8 @@ import {
   UseInterceptors,
   HttpStatus,
   ParseUUIDPipe,
+  UploadedFiles,
+  UploadedFile,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -22,6 +24,7 @@ import {
   ApiBody,
   ApiExtraModels,
   getSchemaPath,
+  ApiConsumes,
 } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { CacheInterceptor, CacheTTL } from '@nestjs/cache-manager';
@@ -33,6 +36,7 @@ import { PaginationDto } from './dto/pagination.dto';
 import { SearchProductsDto } from './dto/search-products.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 
 // Define custom response DTOs for Swagger
 class PaginatedProductsResponse {
@@ -769,5 +773,158 @@ export class ProductsController {
   })
   async remove(@Param('id') id: string) {
     return this.productsService.remove(id);
+  }
+
+  @Post('upload-image')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @UseInterceptors(FileInterceptor('image'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Upload a single product image',
+    description: 'Uploads a single image to Cloudinary and returns the URL',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        image: {
+          type: 'string',
+          format: 'binary',
+          description: 'Image file to upload (JPEG, PNG, WebP)',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Image uploaded successfully',
+    schema: {
+      example: {
+        imageUrl:
+          'https://res.cloudinary.com/your-cloud/image/upload/v123/products/image.jpg',
+      },
+    },
+  })
+  async uploadImage(@UploadedFile() file: Express.Multer.File) {
+    return this.productsService.uploadImage(file);
+  }
+
+  @Post('upload-images')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @UseInterceptors(FilesInterceptor('images', 5))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Upload multiple product images',
+    description: 'Uploads up to 5 images to Cloudinary and returns the URLs',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        images: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+          description: 'Image files to upload (max 5 files)',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Images uploaded successfully',
+    schema: {
+      example: {
+        imageUrls: [
+          'https://res.cloudinary.com/your-cloud/image/upload/v123/products/image1.jpg',
+          'https://res.cloudinary.com/your-cloud/image/upload/v123/products/image2.jpg',
+        ],
+      },
+    },
+  })
+  async uploadImages(@UploadedFiles() files: Express.Multer.File[]) {
+    return this.productsService.uploadImages(files);
+  }
+
+  @Post(':id/upload-images')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @UseInterceptors(FilesInterceptor('images', 5))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Upload and attach images to existing product',
+    description:
+      'Uploads images and directly attaches them to an existing product',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Product UUID',
+    type: String,
+    format: 'uuid',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        images: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+          description: 'Image files to upload and attach',
+        },
+        replaceExisting: {
+          type: 'boolean',
+          description: 'Whether to replace existing images or append',
+          default: false,
+        },
+      },
+    },
+  })
+  async uploadProductImages(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body('replaceExisting') replaceExisting: boolean = false,
+  ) {
+    return this.productsService.uploadProductImages(id, files, replaceExisting);
+  }
+
+  @Delete(':id/images')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Remove images from product',
+    description:
+      'Removes specified images from a product and deletes them from Cloudinary',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Product UUID',
+    type: String,
+    format: 'uuid',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        imageUrls: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of image URLs to remove',
+        },
+      },
+      required: ['imageUrls'],
+    },
+  })
+  async removeProductImages(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('imageUrls') imageUrls: string[],
+  ) {
+    return this.productsService.removeProductImages(id, imageUrls);
   }
 }
