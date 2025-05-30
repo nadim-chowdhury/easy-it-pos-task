@@ -1,5 +1,5 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 import { LoggerService } from '../logger/logger.service';
 
@@ -29,7 +29,8 @@ export class PrismaService
 
       // Enable query logging in development
       if (process.env.NODE_ENV === 'development') {
-        (this as any).$on('query', (e: Prisma.QueryEvent) => {
+        // Fixed: Use proper typing for query events
+        (this as any).$on('query', (e: any) => {
           this.logger.debug(`Query: ${e.query}`, 'PrismaService');
           this.logger.debug(`Duration: ${e.duration}ms`, 'PrismaService');
         });
