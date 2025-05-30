@@ -10,6 +10,7 @@ interface CartItem {
   id: string;
   name: string;
   code: string;
+  imageUrl?: string;
   price: number;
   quantity: number;
 }
@@ -51,7 +52,10 @@ export default function CartItem({
       <CardContent className="px-4">
         <div className="flex items-start justify-between mb-3">
           <Image
-            src="https://files.ekmcdn.com/bluestar/images/single-walled-cardboard-box-6-x-6-x-6-pack-of-25-160-p.jpg"
+            src={
+              item.imageUrl ||
+              "https://files.ekmcdn.com/bluestar/images/single-walled-cardboard-box-6-x-6-x-6-pack-of-25-160-p.jpg"
+            }
             alt=""
             width={640}
             height={640}
