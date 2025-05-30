@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -14,6 +14,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Product, CreateProductDto, UpdateProductDto } from "@/lib/api";
+import { Upload, X, ImageIcon } from "lucide-react";
+import Image from "next/image";
 
 // Validation schema
 const productFormSchema = z.object({
@@ -48,6 +50,10 @@ export default function ProductForm({
   loading = false,
 }: ProductFormProps) {
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const {
     control,
@@ -63,7 +69,7 @@ export default function ProductForm({
       stockQty: 0,
       category: "",
     },
-    mode: "onChange", // Validate on change for better UX
+    mode: "onChange",
   });
 
   // Reset form when editing product changes
@@ -76,6 +82,10 @@ export default function ProductForm({
         stockQty: editingProduct.stockQty,
         category: editingProduct.category || "",
       });
+      // Set existing image preview
+      if (editingProduct.imageUrl) {
+        setImagePreview(editingProduct.imageUrl);
+      }
     } else {
       reset({
         name: "",
@@ -84,7 +94,9 @@ export default function ProductForm({
         stockQty: 0,
         category: "",
       });
+      setImagePreview(null);
     }
+    setSelectedImage(null);
   }, [editingProduct, reset]);
 
   // Remove focus when dialog opens with existing product data
@@ -95,6 +107,40 @@ export default function ProductForm({
       }, 100);
     }
   }, [isOpen, editingProduct]);
+
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith("image/")) {
+        alert("Please select an image file");
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert("Image size should be less than 5MB");
+        return;
+      }
+
+      setSelectedImage(file);
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setSelectedImage(null);
+    setImagePreview(editingProduct?.imageUrl || null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
 
   const onFormSubmit = (data: ProductFormData) => {
     // Step 1: Get the JSON string from localStorage
@@ -119,7 +165,9 @@ export default function ProductForm({
       stockQty: data.stockQty,
       category: data.category?.trim() || undefined,
       createdBy: userId,
+      image: selectedImage || undefined, // Include selected image
     };
+    console.log(" onFormSubmit ~ submitData:", submitData);
 
     onSubmit(submitData);
     handleFormClose();
@@ -127,6 +175,11 @@ export default function ProductForm({
 
   const handleFormClose = () => {
     reset();
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
     onOpenChange(false);
   };
 
@@ -136,13 +189,68 @@ export default function ProductForm({
 
   return (
     <Dialog open={isOpen} onOpenChange={handleFormClose}>
-      <DialogContent className="">
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
             {editingProduct ? "Edit Product" : "Add New Product"}
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
+          {/* Image Upload Section */}
+          <div className="space-y-2">
+            <Label>Product Image</Label>
+            <div className="flex flex-col gap-3">
+              {/* Image Preview */}
+              {imagePreview && (
+                <div className="relative w-32 h-32 border rounded-lg overflow-hidden bg-gray-50">
+                  <Image
+                    src={imagePreview}
+                    alt="Product preview"
+                    width={360}
+                    height={360}
+                    className="w-32 h-32 object-cover"
+                  />
+                  {!editingProduct && (
+                    <button
+                      type="button"
+                      onClick={removeImage}
+                      className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 cursor-pointer"
+                      disabled={loading}
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Upload Button */}
+              <div className="flex gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                  disabled={loading}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={loading}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  {imagePreview ? (
+                    <ImageIcon size={16} />
+                  ) : (
+                    <Upload size={16} />
+                  )}
+                  {imagePreview ? "Change Image" : "Upload Image"}
+                </Button>
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="name">Product Name</Label>
             <Controller

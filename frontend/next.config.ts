@@ -10,6 +10,12 @@ const nextConfig = {
         port: "", // optional
         pathname: "**", // allows all image paths
       },
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+        port: "", // optional
+        pathname: "**", // allows all image paths
+      },
     ],
   },
 };

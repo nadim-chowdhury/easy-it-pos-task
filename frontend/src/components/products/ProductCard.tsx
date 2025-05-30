@@ -47,7 +47,10 @@ export default function ProductCard({
         <div className="flex items-start justify-between">
           <div className="flex items-start space-x-4 flex-1">
             <Image
-              src="https://files.ekmcdn.com/bluestar/images/single-walled-cardboard-box-6-x-6-x-6-pack-of-25-160-p.jpg"
+              src={
+                product.imageUrl ||
+                "https://files.ekmcdn.com/bluestar/images/single-walled-cardboard-box-6-x-6-x-6-pack-of-25-160-p.jpg"
+              }
               alt={product.name}
               width={64}
               height={64}

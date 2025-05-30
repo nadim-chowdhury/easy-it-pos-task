@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { LoggerService } from './modules/logger/logger.service';
-import compression from 'compression';
+import * as compression from 'compression';
 import helmet from 'helmet';
 
 async function bootstrap() {
@@ -96,14 +96,14 @@ async function bootstrap() {
   await app.listen(port);
 
   logger.log(
-    `🚀 Application is running on: http://localhost:${port}`,
+    `~~~ Application is running on: http://localhost:${port}`,
     'Bootstrap',
   );
   logger.log(
     `>>> Swagger docs: http://localhost:${port}/api/docs`,
     'Bootstrap',
   );
-  logger.log(`>>> Health check: http://localhost:${port}/health`, 'Bootstrap');
+  logger.log(`--- Health check: http://localhost:${port}/health`, 'Bootstrap');
 }
 
 bootstrap().catch((error) => {

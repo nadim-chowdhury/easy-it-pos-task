@@ -13,7 +13,7 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { SearchProductsDto } from './dto/search-products.dto';
 import { ProductResponseDto } from './dto/product-response.dto';
 import { PaginationDto } from './dto/pagination.dto';
-import { CloudinaryService } from '../../common/services/cloudinary.service';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class ProductsService {
@@ -110,19 +110,16 @@ export class ProductsService {
       }
 
       // Handle image updates
-      let newImageUrl = existingProduct.imageUrl;
-
       if (imageFile) {
         // Delete old image if exists
         if (existingProduct.imageUrl) {
           await this.cloudinaryService.deleteImage(existingProduct.imageUrl);
         }
         // Upload new image
-        newImageUrl = await this.cloudinaryService.uploadImage(
+        updateData.imageUrl = await this.cloudinaryService.uploadImage(
           imageFile,
           'products',
         );
-        updateData.imageUrl = newImageUrl;
       }
 
       const product = await this.prisma.product.update({
@@ -162,13 +159,7 @@ export class ProductsService {
     const skip = (validatedPage - 1) * validatedLimit;
 
     // Validate sort parameters
-    const allowedSortFields = [
-      'createdAt',
-      'updatedAt',
-      'name',
-      'price',
-      'rating',
-    ];
+    const allowedSortFields = ['createdAt', 'updatedAt', 'name', 'price'];
     const validSortBy = allowedSortFields.includes(sortBy)
       ? sortBy
       : 'createdAt';
@@ -186,7 +177,7 @@ export class ProductsService {
       }
 
       if (category) {
-        whereClause.categoryId = category;
+        whereClause.category = category;
       }
 
       if (minPrice !== undefined || maxPrice !== undefined) {
@@ -438,7 +429,6 @@ export class ProductsService {
       throw new BadRequestException('Failed to delete product');
     }
   }
-
   // Helper method to reduce stock during sales
   async reduceStock(productId: string, quantity: number, saleId?: string) {
     try {

@@ -106,6 +106,7 @@ export interface Product {
   category?: string | null;
   barcode?: string | null;
   createdBy?: string | null;
+  imageUrl?: string | null;
   isActive: boolean;
   isLowStock: boolean;
   createdAt: string;
@@ -121,6 +122,7 @@ export interface CreateProductDto {
   category?: string;
   barcode?: string;
   createdBy?: string;
+  image?: File;
 }
 
 export interface UpdateProductDto {
@@ -131,6 +133,7 @@ export interface UpdateProductDto {
   stockQty?: number;
   category?: string;
   barcode?: string;
+  image?: File;
 }
 
 // Cart and Sale interfaces
@@ -314,7 +317,7 @@ export const productsAPI = {
   },
 
   /**
-   * POST /products - Create a new product
+   * POST /products - Create a new product (with or without image)
    */
   create: async (product: CreateProductDto): Promise<ApiResponse<Product>> => {
     try {
@@ -332,6 +335,46 @@ export const productsAPI = {
         throw new Error("Stock quantity cannot be negative");
       }
 
+      // If we have an image, use FormData for multipart upload
+      if (product.image) {
+        const formData = new FormData();
+
+        // Add all product fields to FormData
+        formData.append("name", product.name.trim());
+        formData.append("code", product.code.trim());
+        formData.append("price", product.price.toString());
+        formData.append("stockQty", product.stockQty.toString());
+
+        if (product.category?.trim()) {
+          formData.append("category", product.category.trim());
+        }
+        if (product.description?.trim()) {
+          formData.append("description", product.description.trim());
+        }
+        if (product.barcode?.trim()) {
+          formData.append("barcode", product.barcode.trim());
+        }
+        if (product.createdBy?.trim()) {
+          formData.append("createdBy", product.createdBy.trim());
+        }
+
+        // Add the image file
+        formData.append("image", product.image);
+
+        // Send multipart request
+        return await apiClient
+          .request<ApiResponse<Product>>({
+            url: "/products",
+            method: "POST",
+            data: formData,
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          })
+          .then((response) => response.data);
+      }
+
+      // If no image, send regular JSON request
       return await apiRequest<ApiResponse<Product>>("/products", {
         method: "POST",
         data: {
@@ -352,7 +395,7 @@ export const productsAPI = {
   },
 
   /**
-   * PUT /products/:id - Update product
+   * PUT /products/:id - Update product (with or without image)
    */
   update: async (
     id: string,
@@ -367,6 +410,50 @@ export const productsAPI = {
         throw new Error("Stock quantity cannot be negative");
       }
 
+      // If we have an image, use FormData for multipart upload
+      if (updates.image) {
+        const formData = new FormData();
+
+        // Add updated fields to FormData (only non-undefined values)
+        if (updates.name?.trim()) {
+          formData.append("name", updates.name.trim());
+        }
+        if (updates.code?.trim()) {
+          formData.append("code", updates.code.trim());
+        }
+        if (updates.category?.trim()) {
+          formData.append("category", updates.category.trim());
+        }
+        if (updates.description?.trim()) {
+          formData.append("description", updates.description.trim());
+        }
+        if (updates.barcode?.trim()) {
+          formData.append("barcode", updates.barcode.trim());
+        }
+        if (updates.price !== undefined) {
+          formData.append("price", updates.price.toString());
+        }
+        if (updates.stockQty !== undefined) {
+          formData.append("stockQty", updates.stockQty.toString());
+        }
+
+        // Add the image file
+        formData.append("image", updates.image);
+
+        // Send multipart request
+        return await apiClient
+          .request<ApiResponse<Product>>({
+            url: `/products/${id}`,
+            method: "PUT",
+            data: formData,
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          })
+          .then((response) => response.data);
+      }
+
+      // If no image, send regular JSON request
       const cleanUpdates = {
         ...updates,
         name: updates.name?.trim(),
@@ -429,22 +516,71 @@ export const productsAPI = {
   },
 
   /**
-   * Update stock for a specific product (for POS checkout)
+   * PUT /products/:id/stock - Update product stock with reason
    */
   updateStock: async (
     id: string,
-    newStockQty: number
+    quantity: number,
+    reason: string
   ): Promise<ApiResponse<Product>> => {
     try {
-      if (newStockQty < 0) {
+      if (quantity < 0) {
         throw new Error("Stock quantity cannot be negative");
       }
+      if (!reason?.trim()) {
+        throw new Error("Reason for stock update is required");
+      }
 
-      return await productsAPI.update(id, { stockQty: newStockQty });
+      return await apiRequest<ApiResponse<Product>>(`/products/${id}/stock`, {
+        method: "PUT",
+        data: {
+          quantity: Number(quantity),
+          reason: reason.trim(),
+        },
+      });
     } catch (error) {
       console.error(`Error updating stock for product ${id}:`, error);
       throw error;
     }
+  },
+
+  /**
+   * GET /products/low-stock - Get products with low stock
+   */
+  getLowStock: async (): Promise<
+    ApiResponse<{ data: Product[]; count: number }>
+  > => {
+    try {
+      return await apiRequest<ApiResponse<{ data: Product[]; count: number }>>(
+        "/products/low-stock",
+        { method: "GET" }
+      );
+    } catch (error) {
+      console.error("Error fetching low stock products:", error);
+      throw new Error("Failed to fetch low stock products");
+    }
+  },
+
+  // Legacy methods - kept for backward compatibility but now redirect to main methods
+  /**
+   * @deprecated Use create() method instead
+   */
+  createWithImage: async (
+    product: CreateProductDto
+  ): Promise<ApiResponse<Product>> => {
+    console.warn("createWithImage is deprecated. Use create() method instead.");
+    return productsAPI.create(product);
+  },
+
+  /**
+   * @deprecated Use update() method instead
+   */
+  updateWithImage: async (
+    id: string,
+    updates: UpdateProductDto
+  ): Promise<ApiResponse<Product>> => {
+    console.warn("updateWithImage is deprecated. Use update() method instead.");
+    return productsAPI.update(id, updates);
   },
 };
 
