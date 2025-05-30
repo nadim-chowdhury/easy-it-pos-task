@@ -167,7 +167,6 @@ export default function ProductForm({
       createdBy: userId,
       image: selectedImage || undefined, // Include selected image
     };
-    console.log(" onFormSubmit ~ submitData:", submitData);
 
     onSubmit(submitData);
     handleFormClose();

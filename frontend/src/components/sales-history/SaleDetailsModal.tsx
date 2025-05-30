@@ -12,7 +12,6 @@ export default function SaleDetailsModal({
   getPaymentMethodColor,
   getStatusColor,
 }: any) {
-  console.log(" selectedSale:", selectedSale);
   return (
     <motion.div
       initial={{ opacity: 0 }}

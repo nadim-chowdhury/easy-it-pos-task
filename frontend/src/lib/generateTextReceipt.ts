@@ -266,9 +266,8 @@ export const downloadPDFReceipt = async (selectedSale: any) => {
     const doc = await generatePDFReceipt(selectedSale);
     doc.save(`receipt-${selectedSale.saleNumber}.pdf`);
   } catch (error) {
-    console.error("Error downloading PDF:", error);
+    console.log(" downloadPDFReceipt ~ error:", error);
     // Fallback to HTML download
-    console.log("Falling back to HTML download...");
     downloadHTMLReceipt(selectedSale);
   }
 };

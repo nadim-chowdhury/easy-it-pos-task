@@ -37,6 +37,7 @@ interface CartItem {
   id: string;
   name: string;
   code: string;
+  imageUrl?: string | null;
   price: number;
   quantity: number;
 }
@@ -177,6 +178,7 @@ export default function POSpage() {
         name: product.name,
         code: product.code,
         price: product.price,
+        imageUrl: product.imageUrl,
         quantity: 1,
       };
       setCart([...cart, newItem]);

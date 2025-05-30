@@ -118,7 +118,6 @@ export default function SalesHistoryPage() {
     }
     return passesDateFilter && passesSearchFilter;
   });
-  console.log(" filteredSales ~ filteredSales:", filteredSales);
 
   // Reset to first page when filters change
   useEffect(() => {
