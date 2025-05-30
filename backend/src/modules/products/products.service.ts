@@ -13,7 +13,6 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { SearchProductsDto } from './dto/search-products.dto';
 import { ProductResponseDto } from './dto/product-response.dto';
 import { PaginationDto } from './dto/pagination.dto';
-import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class ProductsService {
@@ -157,14 +156,15 @@ export class ProductsService {
           sortOrder: validSortOrder,
         },
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error fetching products', {
         error: error.message,
         stack: error.stack,
         pagination: { page: validatedPage, limit: validatedLimit },
       });
 
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      // Check if it's a known Prisma error
+      if (error.code && typeof error.code === 'string') {
         throw new BadRequestException(`Database error: ${error.message}`);
       }
 
@@ -415,7 +415,7 @@ export class ProductsService {
       throw new BadRequestException('Failed to delete product');
     }
   }
-  
+
   // Helper method to reduce stock during sales
   async reduceStock(productId: string, quantity: number, saleId?: string) {
     try {
